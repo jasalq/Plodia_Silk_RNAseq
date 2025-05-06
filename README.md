@@ -1,1 +1,1 @@
-# Plodia_Silk_Diff_Exp
+# Plodia_Silk_RNAseq
