@@ -5,6 +5,21 @@
 
 ### Tools Used 
 
+DESeq2	
+
+Fastp v.0.21.0	
+
+FastQC v.0.11.8
+
+JDK v.21.0.1
+
+NCBI Datasets
+
+STAR v.2.7.11b
+
+Subread v.2.0.8
+
+
 
 ## Assessment of RNA Sequencing Quality using FastQC
 Quality of RNA sequencing was accessed using FastQC
