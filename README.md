@@ -347,7 +347,7 @@ for i in star_pass_2*.out; do
 	mv ${i} "star_pass_2_${line8}.out";
 	done 
 ```
-## Counts with FeatureCounts
+## Read Counts with FeatureCounts
 Install subread software which contains FeatureCounts
 
 ```
@@ -355,7 +355,7 @@ conda create -n subread_2.0.8 -c conda-forge mamba
 conda activate subread_2.0.8
 conda install -c conda-forge -c bioconda subread
 ```
-Activate the subread enviroment and submit the counts job
+Activate the subread enviroment and submit the counts job using a custom GTF annotation file that contains manual annotations for silk gland related genes.
 ```
 #!/bin/sh
 #SBATCH -J plodia_SG_rnaseq_counts
