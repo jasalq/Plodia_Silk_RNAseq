@@ -287,4 +287,104 @@ for i in star_pass_1_cat*.out; do
 	mv ${i} "star_pass_1_cat${line8}.out";
 	done
 ```
+**Run the second pass of STAR mapping to the <em>Plodia</em> genome**
+```
+mkdir star_pass2
+
+#!/bin/sh
+#SBATCH -J plodia_SG_rnaseq_star_pass_2
+#SBATCH --mail-type=END
+#SBATCH --mail-user=j.alqassar@gwu.edu
+#SBATCH -o star_pass_2_%A_%a.out #redirecting stdout
+#SBATCH -p nano #queue 
+#SBATCH -n 40 #amount of cores 
+#SBATCH -t 0:30:00
+#SBATCH --array=0-23%10
+
+echo "=========================================================="
+echo "Running on node : $HOSTNAME"
+echo "Current directory : $PWD"
+echo "Current job ID : $SLURM_JOB_ID"
+echo "Job Started:"
+date
+echo "=========================================================="
+
+PATH=$PATH:/CCAS/groups/martinlab/jasmine/software/STAR/source
+
+ulimit -n 10000
+
+PREFIX=/scratch/martinlab/jasmine/plodia_silk_gland_diff_exp/star_runs
+names=($(cat ${PREFIX}/all_samples))
+echo ${names[${SLURM_ARRAY_TASK_ID}]} 
+
+CORES=40
+GENOME_DIR=/scratch/martinlab/jasmine/plodia_silk_gland_diff_exp/star_runs/plodia_genome_index_out
+GENOME=/scratch/martinlab/jasmine/plodia_silk_gland_diff_exp/GCF_027563975.2_ilPloInte3.2_genomic.fna
+ANNOTATION=/scratch/martinlab/jasmine/plodia_silk_gland_diff_exp/GCF_027563975.2.gtf
+RNAseq_FILES_PATH=/scratch/martinlab/jasmine/plodia_silk_gland_diff_exp/trimmed
+OUT_DIR=/scratch/martinlab/jasmine/plodia_silk_gland_diff_exp/star_runs/star_pass2
+PASS1_DIR=/scratch/martinlab/jasmine/plodia_silk_gland_diff_exp/star_runs/star_pass1
+
+STAR --runMode alignReads --runThreadN $CORES --genomeDir $GENOME_DIR --outSAMtype BAM SortedByCoordinate \
+        --outFileNamePrefix ${OUT_DIR}/${names[${SLURM_ARRAY_TASK_ID}]}_pass2_mapped --readFilesCommand zcat \
+        --sjdbGTFfile $ANNOTATION --limitBAMsortRAM 60000000000 \
+        --sjdbOverhang 149 --outSAMstrandField intronMotif --alignSoftClipAtReferenceEnds No --sjdbGTFtagExonParentTranscript Parent \
+        --outReadsUnmapped Fastx \
+        --quantMode GeneCounts \
+        --sjdbFileChrStartEnd ${PASS1_DIR}/${names[${SLURM_ARRAY_TASK_ID}]}_STARgenome/sjdbList.out.tab \
+        --readFilesIn ${RNAseq_FILES_PATH}/${names[${SLURM_ARRAY_TASK_ID}]}_adap_trim_R1_001.fastq.gz ${RNAseq_FILES_PATH}/${names[${SLURM_ARRAY_TASK_ID}]}_adap_trim_R2_001.fastq.gz 
+      
+
+echo "=========================================================="
+echo "Job Finished  $SLURM_JOB_ID:"
+date
+echo "=========================================================="
+````
+After the job is done rename the log files by sample rather than array job ID
+```
+for i in star_pass_2*.out; do
+	line8=$(sed -n '8p' ${i})
+	mv ${i} "star_pass_2_${line8}.out";
+	done 
+```
+## Counts with FeatureCounts
+Install subread software which contains FeatureCounts
+
+```
+conda create -n subread_2.0.8 -c conda-forge mamba
+conda activate subread_2.0.8
+conda install -c conda-forge -c bioconda subread
+```
+Activate the subread enviroment and submit the counts job
+```
+#!/bin/sh
+#SBATCH -J plodia_SG_rnaseq_counts
+#SBATCH --mail-type=END
+#SBATCH --mail-user=j.alqassar@gwu.edu
+#SBATCH -o counts.out #redirecting stdout
+#SBATCH -p defq #queue 
+#SBATCH -n 40 #amount of cores 
+#SBATCH -t 4:00:00
+
+echo "=========================================================="
+echo "Running on node : $HOSTNAME"
+echo "Current directory : $PWD"
+echo "Current job ID : $SLURM_JOB_ID"
+echo "Job Started:"
+date
+echo "=========================================================="
+
+ANNOTATION=/scratch/martinlab/jasmine/plodia_silk_gland_diff_exp/GCF_027563975.2_Ser1B-edited.gtf #use gff and are to see if the results are the same
+OUT=Pi_SG_SalG.featurecounts.txt
+BAM_FILES=/scratch/martinlab/jasmine/plodia_silk_gland_diff_exp/star_runs/star_pass2
+CORES=40
+
+featureCounts -a $ANNOTATION -o $OUT  -T $CORES -p --primary -t exon -g gene_id ${BAM_FILES}/*.bam 2> FeatCounts.log
+
+echo "=========================================================="
+echo "Job Finished  $SLURM_JOB_ID:"
+date
+echo "=========================================================="
+```
+## Differential Expression Analysis with DESeq2 in RStudio
 
