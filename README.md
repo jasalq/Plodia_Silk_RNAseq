@@ -3,6 +3,9 @@
 
 ## Pipeline Outline 
 
+### Tools Used 
+
+
 ## Assessment of RNA Sequencing Quality using FastQC
 Quality of RNA sequencing was accessed using FastQC
 ```
