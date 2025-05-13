@@ -2,24 +2,22 @@
 [Description for project with the pre-print link]
 
 ## Pipeline Outline 
-
+1. RNAseq Quality Assessment 
+2. Adapter Trimming
+3. Read Mapping to Reference Genome
+4. Read Counting
+5. Differential Expression Analysis (DESeq2)
+6. Gene Identification through Homology Searches
+7. Visualization of Differential Expression Analysis Results in R
+    
 ### Tools Used 
-
-DESeq2	
-
-Fastp v.0.21.0	
-
-FastQC v.0.11.8
-
-JDK v.21.0.1
-
-NCBI Datasets
-
-STAR v.2.7.11b
-
-Subread v.2.0.8
-
-
+* Fastp v.0.21.0	
+* FastQC v.0.11.8
+* JDK v.21.0.1
+* NCBI Datasets
+* R/ DESeq2
+* STAR v.2.7.11b
+* Subread v.2.0.8
 
 ## Assessment of RNA Sequencing Quality using FastQC
 Quality of RNA sequencing was accessed using FastQC
