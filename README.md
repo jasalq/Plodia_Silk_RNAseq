@@ -16,6 +16,10 @@
 * JDK v.21.0.1
 * NCBI Datasets
 * R/ DESeq2
+* R/ dplyr
+* R/ ggplot2
+* R/ stringr)
+* R/ tidyverse
 * STAR v.2.7.11b
 * Subread v.2.0.8
 
