@@ -11,6 +11,7 @@
 7. Visualization of Differential Expression Analysis Results in R
     
 ### Tools Used 
+* Blast+ v.2.16.0+
 * Fastp v.0.21.0	
 * FastQC v.0.11.8
 * JDK v.21.0.1
