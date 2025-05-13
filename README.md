@@ -16,6 +16,7 @@
 * FastQC v.0.11.8
 * JDK v.21.0.1
 * NCBI Datasets
+* RStudio v2024.04.2+764
 * R/ cowplot
 * R/ DESeq2
 * R/ dplyr
