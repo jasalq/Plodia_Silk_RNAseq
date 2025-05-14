@@ -2,7 +2,7 @@
 [Description for project with the pre-print link]
 
 ## Pipeline Outline 
-1. RNAseq Quality Assessment 
+1. [RNAseq Quality Assessment](#assessment-of-rna-sequencing-quality-using-fastqc) 
 2. Adapter Trimming
 3. Read Mapping to Reference Genome
 4. Read Counting
@@ -417,4 +417,4 @@ date
 echo "=========================================================="
 ```
 ## Differential Expression Analysis with DESeq2 in RStudio
-
+An R script with all of the code detailed below is [here](https://github.com/jasalq/Plodia_Silk_RNAseq/blob/afa0d7c60f025473a66a0297f3f168ada8b567db/R_Scripts/MSG_vs_PSG_DeSeq.R)
