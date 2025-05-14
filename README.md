@@ -801,6 +801,7 @@ write.table(topGenesMSGvsPSG, file="topGenesMSG_PSG_FINAL_Seq_runs_comb_4tissue.
 ## Final Visualization of Differential Expression Analysis Results in R
 ### Generating a Heatmap with the expression z-score for the top 230 genes in the MSG vs PSG contrast for all 4 tissues 
 (based on the tutorial here https://genviz.org/module-04-expression/0004/02/01/DifferentialExpression/) 	
+
 An R script with all of the code detailed below is [here](#R_Scripts/heatmap_code_cleaned.R)
 
 Load libraries
