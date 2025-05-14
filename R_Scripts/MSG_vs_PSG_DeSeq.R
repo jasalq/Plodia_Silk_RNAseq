@@ -78,12 +78,14 @@ countdata <- countdata[, !colnames(countdata) %in% c("1B_cat", "2B_cat", "3B_cat
 for(i in 1:nrow(sampleinfo)){
 sampleinfo$seq_run[i] <- strsplit(sampleinfo$Sample[i], '_')[[1]][1]}
 
+# Define DESeq variables 
+
 dds <- DESeqDataSetFromMatrix(
   countData = countdata,
   colData = sampleinfo,
   design = ~ Tissue
 )
-
+# Collapse sequencing runs counts by sample 
 ddscoll <- collapseReplicates(dds, dds$seq_run, renameCols=TRUE) #collapsing sequencing runs of PSG
 
 ddsObj.raw <- DESeq(ddscoll)
@@ -125,14 +127,11 @@ write.table(allGenesMSG_PSG_dds, file="All_Plodia_genes_MSG_PSG_dds.tsv", quote=
 # replace some of the LOC numbers with geneIDs
 LOC_geneid <- read_tsv("GeneID_to_LOC.txt")
 
-#I don't think this next section is necessary because I edited the count matrix before 
-
-#topGenesMSG_PSG <- topGenesMSG_PSG %>%
-  #left_join(LOC_geneid, by = c("Geneid" = "LOC")) %>%  # Join on Geneid and LOC
- # mutate(
-   # Geneid = ifelse(!is.na(prot), prot, Geneid)  # Replace Geneid with prot if there's a match
-  #) %>%
-  #select(-prot) 
+topGenesMSG_PSG <- topGenesMSG_PSG %>%
+  left_join(LOC_geneid, by = c("Geneid" = "LOC")) %>%  # Join on Geneid and LOC
+  mutate(
+   Geneid = ifelse(!is.na(prot), prot, Geneid)) %>%  # Replace Geneid with prot if there's a match
+  select(-prot) 
 
 #Volcano Plot 
 topGenesMSG_PSG <- topGenesMSG_PSG %>%
