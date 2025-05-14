@@ -521,7 +521,7 @@ Adding identifier to collapse by sequencing runs
 for(i in 1:nrow(sampleinfo)){
 sampleinfo$seq_run[i] <- strsplit(sampleinfo$Sample[i], '_')[[1]][1]}
 ```
-Define DESeq variables 
+Define DESeq variables and design
 ```
 dds <- DESeqDataSetFromMatrix(
   countData = countdata,
@@ -578,33 +578,15 @@ topGenesMSG_PSG <- topGenesMSG_PSG %>%
    Geneid = ifelse(!is.na(prot), prot, Geneid)) %>%  # Replace Geneid with prot if there's a match
   select(-prot) 
 ```
-
-########################## Need to reformat stuff below still
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#Volcano Plot 
+Generate preliminary Log2FoldChange vs Padj Volcano Plot
+```
 topGenesMSG_PSG <- topGenesMSG_PSG %>%
   mutate(direction = case_when(
     padj < 0.05 & log2FoldChange > 0 ~ "up",
     padj < 0.05 & log2FoldChange < 0 ~ "down",
     TRUE ~ "ns"
   ))
-### trying to force significance level to be right in box plot but this doesn't work because the box plot code takes ddsObj
+# trying to force significance level to be right in box plot but this doesn't work because the box plot code takes ddsObj
 topGenesMSG_PSG <- topGenesMSG_PSG %>%
   mutate(sig = case_when(
     padj < 0.05 & log2FoldChange > 0 ~ "*",
@@ -631,8 +613,14 @@ vol_plot <- topGenesMSG_PSG %>%
             color = "black", size = 3, nudge_y = 4)  
 vol_plot  
 
-#write.table(topGenesMSG_PSG, file="MSG_PSG_new_anno_results.txt", quote=F, sep="\t")
+write.table(topGenesMSG_PSG, file="MSG_PSG_new_anno_results.txt", quote=F, sep="\t")
+```
+Now trying to identify unidentified genes by getting blasting to <em>Drosophila</em> on FlyBase  
 
+
+
+
+########################## Need to reformat stuff below still
 #Add the XP for each LOC
 Geneid_XP <- read_tsv("Plodia_gene_IDs.txt")
 Geneid_XP <- Geneid_XP %>%
