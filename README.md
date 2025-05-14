@@ -615,13 +615,48 @@ vol_plot
 
 write.table(topGenesMSG_PSG, file="MSG_PSG_new_anno_results.txt", quote=F, sep="\t")
 ```
-Now trying to identify unidentified genes by getting blasting to <em>Drosophila</em> on FlyBase  
+**If you want to get a table with the normalized counts per tissue** 
+```
+counts_ddsObj <- counts(ddsObj, normalized=TRUE) %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "Geneid")
 
-## Homology Searches 
+counts_ddsObj <- counts_ddsObj %>%
+  mutate(MSG_avg = rowMeans(select(., ends_with("A")))) %>%
+  mutate(PSG_avg = rowMeans(select(., ends_with("B"))))%>%
+  mutate(SalG_avg = rowMeans(select(., ends_with("C"))))%>%
+  mutate(Head_avg = rowMeans(select(., ends_with("D")) %>% select(where(is.numeric)))) %>%
+  select("Geneid", ends_with("avg"), ends_with("A"), ends_with("B"), ends_with("C"), ends_with("D"),  everything()) 
+
+counts_ddsObj <- counts_ddsObj %>%
+  left_join(LOC_geneid, by = c("Geneid" = "LOC")) %>%  # Join on Geneid and LOC
+  mutate(
+    Geneid = ifelse(!is.na(prot), prot, Geneid)  # Replace Geneid with prot if there's a match
+  ) %>%
+  select(-prot) 
+
+counts_ddsObj <- counts_ddsObj %>%
+  left_join(flybase_results_clean, by = c("Geneid" = "Symbol"))%>%
+  relocate("FB_gene_symbol", .after = "Geneid")%>%
+  relocate("gene_fullname", .after = "FB_gene_symbol") %>%
+  left_join(Plodia_gene_IDs, by = c("Geneid" = "Symbol")) %>%
+  relocate("NCBI_Name", .after = "Geneid") %>%
+  select(-Flybase_prot, -Eval, -FlyBase_FBgn, -summary_text)
+
+write.table(counts_ddsObj, file="All_Plodia_SG_normalized_counts.tsv", quote=F, sep="\t", row.names=FALSE, na="")
+```
+
+Filter for comparisons 
+```
+counts_ddsObj <- counts_ddsObj[counts_ddsObj$Geneid %in% topGenesMSG_PSG$Geneid, ]
+write.table(counts_ddsObj, file="MSG_vs_PSG_4tissue_Plodia_normalized_counts.tsv", quote=F, sep="\t", row.names=FALSE, na="")
+```
 
 
-########################## Need to reformat stuff below still
-#Add the XP for each LOC
+## Homology Searches Using Reciprocal BLASTp to Flybase
+*Add the XP (protein sequence) for each gene in the Plodia genome and make a list of all the <em>Plodia</em> proteins to blast*	 
+[Note: Plodia_gene_IDs.txt is downloaded from the NCBI RefSeq genome annotation package accession no. GCF_027563975.2]
+```
 Geneid_XP <- read_tsv("Plodia_gene_IDs.txt")
 Geneid_XP <- Geneid_XP %>%
   select('Symbol','Protein accession') %>%
@@ -631,24 +666,59 @@ All_Plodia_genes_for_flybase_blastp <-Geneid_XP %>%
   drop_na()  %>%
   select(`Protein accession`)
 write.table(All_Plodia_genes_for_flybase_blastp, file="All_Plodia_genes_for_flybase_prot_accessions.txt", quote=F, sep="\t")
+```
+Visit [NCBI Batch Entrez](#https://www.ncbi.nlm.nih.gov/sites/batchentrez) and select protein database and upload the All_Plodia_genes_for_flybase_prot_accessions.txt you generated to retrieve a FASTA file with all the amino acid sequences for each of the proteins in the list you just generated
 
+**Now run BLASTp on the HPC** 
+```
+#!/bin/sh
+#SBATCH -J flybase_blastp_MSG_PSG
+#SBATCH --mail-type=END
+#SBATCH --mail-user=j.alqassar@gwu.edu
+#SBATCH -o flybase_blastp_MSG_PSG.out #redirecting stdout
+#SBATCH -p tiny;short #queue 
+#SBATCH -n 40 #amount of cores 
+#SBATCH -t 04:00:00
 
-topGenesMSG_PSG_for_flybase <- topGenesMSG_PSG %>%
-  left_join(Geneid_XP, by = c("Geneid" = "Symbol"))  # Join on Geneid and LOC
+echo "=========================================================="
+echo "Running on node : $HOSTNAME"
+echo "Current directory : $PWD"
+echo "Current job ID : $SLURM_JOB_ID"
+echo "Job Started:"
+date
+echo "=========================================================="
 
-topGenesMSG_PSG_for_flybase <- topGenesMSG_PSG_for_flybase %>%
-  drop_na() %>%
-  select(`Protein accession`)# Join on Geneid and LOC
+module load blast+/2.16.0+
 
-write.table(topGenesMSG_PSG_for_flybase, file="topGenesMSG_PSG_for_flybase_prot_accessions.txt", quote=F, sep="\t")
+DB=/scratch/martinlab/jasmine/plodia_silk_gland_diff_exp/get_flybase_names/db
+QUERY=/scratch/martinlab/jasmine/plodia_silk_gland_diff_exp/get_flybase_names/All_Plodia_genes_for_flybase_prot.fa
+PREFIX=all_Plodia_proteins_for_flybase
 
-# edit the table to get rid of numbers in first column and header and input accessions in protein database https://www.ncbi.nlm.nih.gov/sites/batchentrez to get fasta with amino acid sequences 
+blastp -db ${DB} \
+-query ${QUERY} \
+-out ${PREFIX}.out \
+-outfmt 6 \
+-evalue 1e-5 \
+-num_threads 40
+
+echo "=========================================================="
+echo "Job Finished  $SLURM_JOB_ID:"
+date
+echo "=========================================================="
+```
+**Now back to RStudio to add the results to your data matrix** 
+Read in the results
+```
 flybase_results <- read_tsv("all_Plodia_proteins_for_flybase.results.txt", col_names=FALSE)
+```
+Download and read in the following tables from the latest [FlyBase genome release](#https://flybase.org/)
+```
 flybase_prot_to_Symbol <- read_tsv("dmel_unique_protein_isoforms_fb_2025_01.tsv", col_names=TRUE, comment="#")
 flybase_gn_to_bpp <- read_tsv("fbgn_fbtr_fbpp_expanded_fb_2025_01.tsv", col_names=TRUE, comment="#") 
 flybase_gn_summary <- read_tsv("automated_gene_summaries_fb_2025_01.tsv", col_names=TRUE, comment="#") 
-
-
+```
+Do some reformatting of the tables to extract the pertinent information
+```
 flybase_prot_to_Symbol<- flybase_prot_to_Symbol %>%
   select(FBgn, FB_gene_symbol) %>%
   distinct(FBgn, .keep_all = TRUE) %>%
@@ -681,8 +751,9 @@ Plodia_gene_IDs <- Plodia_gene_IDs %>%
   select(Symbol, Name) %>%
   rename("Name" = "NCBI_Name")  %>%
   distinct(Symbol, .keep_all = TRUE)
-
-  
+```
+**Finally add the flybase information for each Plodia gene in your DESeq2 results matrix and output a final table**
+```  
 topGenesMSG_PSG <- topGenesMSG_PSG %>%
   left_join(flybase_results_clean, by = c("Geneid" = "Symbol"))%>%
   relocate("FB_gene_symbol", .after = "Geneid")%>%
@@ -691,82 +762,15 @@ topGenesMSG_PSG <- topGenesMSG_PSG %>%
   relocate("NCBI_Name", .after = "Geneid")
 
 write.table(topGenesMSG_PSG, file="topGenesMSG_PSG_FINAL_Seq_runs_comb_4tissue.tsv", quote=F, sep="\t",row.names=FALSE, na="")
+```
 
-# make a table with the differences to see what is happening 
-
-df1 <- read_tsv("topGenesMSG_PSG_FINAL.tsv", col_names=TRUE) 
-df2 <- read_tsv("topGenesMSG_PSG_FINAL_Seq_runs_comb.tsv", col_names=TRUE)
-
-# Get rows unique to df1
-only_df1 <- df1[!df1$Geneid %in% df2$Geneid, ]
-only_df1$source <- "orig"
-
-# Get rows unique to df2
-only_df2 <- df2[!df2$Geneid %in% df1$Geneid, ]
-only_df2$source <- "seq_runs_combined"
-
-# Combine them
-df3 <- bind_rows(only_df1, only_df2)
-
-df3 <- df3 %>%
-  relocate("source", .after = "Geneid")
-
-
-write.table(df3, file="difference_between_combining_seqruns.tsv", quote=F, sep="\t", row.names=FALSE)
-
-# to get the normalized counts per tissue 
-
-counts_ddsObj <- counts(ddsObj, normalized=TRUE) %>%
-  as.data.frame() %>%
-  rownames_to_column(var = "Geneid")
-
-
-counts_ddsObj <- counts_ddsObj %>%
-  mutate(MSG_avg = rowMeans(select(., ends_with("A")))) %>%
-  mutate(PSG_avg = rowMeans(select(., ends_with("B"))))%>%
-  mutate(SalG_avg = rowMeans(select(., ends_with("C"))))%>%
-  mutate(Head_avg = rowMeans(select(., ends_with("D")) %>% select(where(is.numeric)))) %>%
-  select("Geneid", ends_with("avg"), ends_with("A"), ends_with("B"), ends_with("C"), ends_with("D"),  everything()) 
-
-counts_ddsObj <- counts_ddsObj %>%
-  left_join(LOC_geneid, by = c("Geneid" = "LOC")) %>%  # Join on Geneid and LOC
-  mutate(
-    Geneid = ifelse(!is.na(prot), prot, Geneid)  # Replace Geneid with prot if there's a match
-  ) %>%
-  select(-prot) 
-
-counts_ddsObj <- counts_ddsObj %>%
-  left_join(flybase_results_clean, by = c("Geneid" = "Symbol"))%>%
-  relocate("FB_gene_symbol", .after = "Geneid")%>%
-  relocate("gene_fullname", .after = "FB_gene_symbol") %>%
-  left_join(Plodia_gene_IDs, by = c("Geneid" = "Symbol")) %>%
-  relocate("NCBI_Name", .after = "Geneid") %>%
-  select(-Flybase_prot, -Eval, -FlyBase_FBgn, -summary_text)
-
-
-write.table(counts_ddsObj, file="All_Plodia_SG_normalized_counts.tsv", quote=F, sep="\t", row.names=FALSE, na="")
-
-
-#Filter for comparisons 
-
-counts_ddsObj <- counts_ddsObj[counts_ddsObj$Geneid %in% topGenesMSG_PSG$Geneid, ]
-write.table(counts_ddsObj, file="MSG_vs_PSG_4tissue_Plodia_normalized_counts.tsv", quote=F, sep="\t", row.names=FALSE, na="")
-
-# generate original unfiltered counts_ddsObj and then run this 
-SG_vs_SalG_manual_contrast <- read_tsv("topGenesSG_vs_SalG_manual_Contrast.tsv", col_names=TRUE, comment="#")
-counts_ddsObj <- counts_ddsObj[counts_ddsObj$Geneid %in% SG_vs_SalG_manual_contrast$Geneid, ] #filtering to only include differentially expressed genes from SG vs SalG contrast
-write.table(counts_ddsObj, file="topGenesSG_vs_SalG_manual_Contrast_normalized_counts.tsv", quote=F, sep="\t", row.names=FALSE, na="")
-
-
-# trying to get info for uncharacterized genes 
-
+I still have a lot of uncharacterized genes so I am trying to get info for uncharacterized genes from the protein name description column from the <em>Plodia</em> genome annotation information table 
+```
 topGenesMSGvsPSG <- read_excel("Plodia_SG_SalG_Diff_Exp_results_new_annotation.xlsx", sheet = "MSG_vs_PSG_4tissue") 
 
 Geneid_XP <- read_tsv("Plodia_gene_IDs.txt")
 Geneid_XP <- Geneid_XP %>%
   select(Symbol, `Protein name`)
-
-
 
 uncharacterized_topGenesMSGvsPSG <- topGenesMSGvsPSG %>%
   filter(str_detect(NCBI_Name, "uncharacterized"))
@@ -792,5 +796,5 @@ topGenesMSGvsPSG <- topGenesMSGvsPSG %>%
   select(-`Protein name`) 
 
 write.table(topGenesMSGvsPSG, file="topGenesMSG_PSG_FINAL_Seq_runs_comb_4tissue.tsv", quote=F, sep="\t", row.names=FALSE, na="")
-
+```
 
