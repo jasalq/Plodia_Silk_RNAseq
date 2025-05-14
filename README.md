@@ -707,6 +707,7 @@ date
 echo "=========================================================="
 ```
 **Now back to RStudio to add the results to your data matrix**	 
+
 Read in the results
 ```
 flybase_results <- read_tsv("all_Plodia_proteins_for_flybase.results.txt", col_names=FALSE)
