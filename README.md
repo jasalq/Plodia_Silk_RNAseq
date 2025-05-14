@@ -3,8 +3,8 @@
 
 ## Pipeline Outline 
 1. [RNAseq Quality Assessment](#assessment-of-rna-sequencing-quality-using-fastqc) 
-2. Adapter Trimming
-3. Read Mapping to Reference Genome
+2. [Adapter Trimming](#adapter-trimming-using-fastp)
+3. [Read Mapping to Reference Genome](#star-mapping-of-rnaseq-data-to-the-<em>Plodia</em>-reference-genome-(GCF-027563975.2))
 4. Read Counting
 5. Differential Expression Analysis (DESeq2)
 6. Gene Identification through Homology Searches
