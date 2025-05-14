@@ -5,7 +5,7 @@
 1. [RNAseq Quality Assessment](#assessment-of-rna-sequencing-quality-using-fastqc) 
 2. [Adapter Trimming](#adapter-trimming-using-fastp)
 3. [Read Mapping to Reference Genome](#star-mapping-of-rnaseq-data-to-the-<em>Plodia</em>-reference-genome-(GCF-027563975.2))
-4. Read Counting
+4. [Read Counting](#read-counts-with-featurecounts)
 5. Differential Expression Analysis (DESeq2)
 6. Gene Identification through Homology Searches
 7. Visualization of Differential Expression Analysis Results in R
