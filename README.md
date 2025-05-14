@@ -799,7 +799,8 @@ write.table(topGenesMSGvsPSG, file="topGenesMSG_PSG_FINAL_Seq_runs_comb_4tissue.
 ```
 ## Final Visualization of Differential Expression Analysis Results in R
 ### Generating a Heatmap with the expression z-score for the top 230 genes in the MSG vs PSG contrast for all 4 tissues 
-(based on the tutorial here https://genviz.org/module-04-expression/0004/02/01/DifferentialExpression/)
+(based on the tutorial here https://genviz.org/module-04-expression/0004/02/01/DifferentialExpression/) 	
+An R script with all of the code detailed below is [here](#R_Scripts/heatmap_code_cleaned.R)
 
 Load libraries
 ```
@@ -945,20 +946,24 @@ final_plot <- plot_grid(mid_row, ncol = 1, rel_heights = c(0.2, 1))
 plot_grid(final_plot, legend, rel_widths = c(1, 0.12))
 ```
 
-## Final Plot collapsed by tissue
-
-# vst transformed data
+### Final Plot collapsed by tissue
+Perform variance stabilizing transformation
+```
 vsd <- vst(ddsObj)
 vst_mat <- assay(vsd)
+```
 
-# Get tissue assignment for each sample
+Get tissue assignment for each sample
+```
 tissue_info <- colData(ddsObj)$Tissue
 names(tissue_info) <- colnames(vst_mat)  # label with sample names
-
-# Create a list mapping each tissue to the sample columns
+```
+Create a list mapping each tissue to the sample columns
+```
 tissue_groups <- split(names(tissue_info), tissue_info)
-
-# Collapse vst matrix by computing rowMeans per tissue
+```
+Collapse vst matrix by computing rowMeans per tissue
+```
 collapsed_vst <- sapply(tissue_groups, function(samples) {
   rowMeans(vst_mat[, samples, drop = FALSE], na.rm = TRUE)
 })
@@ -966,15 +971,16 @@ collapsed_vst <- sapply(tissue_groups, function(samples) {
 # Convert to data frame
 collapsed_vst_df <- as.data.frame(collapsed_vst) %>%
   rownames_to_column("Geneid")
-
-# Set rownames and remove Geneid column before scaling
+```
+Set rownames and remove Geneid column before scaling
+```
 mat <- collapsed_vst_df
 rownames(mat) <- mat$Geneid
 mat$Geneid <- NULL
-
-# Z-score across tissues (i.e., scale by row)
+```
+Z-score across tissues (i.e., scale by row)
+```
 Z <- t(scale(t(as.matrix(mat))))
-
 
 # Convert to dataframe and keep gene IDs
 Z <- as.data.frame(Z) %>%
@@ -987,14 +993,13 @@ normcounts <- normcounts %>%
 
 topGenesMSG_PSG <- topGenesMSG_PSG %>%
   left_join(normcounts, by = c("Geneid" = "Geneid"))
+```
 
-
-# Filter significant genes (adjust as needed)
+Filter significant genes (adjust as needed)
+```
 sigGenes <- data.frame(Geneid = topGenesMSG_PSG$Geneid[
   topGenesMSG_PSG$padj <= 0.01 & abs(topGenesMSG_PSG$log2FoldChange) > 3 & topGenesMSG_PSG$`max(msg,psg)` > 300
 ])
-
-
 
 Z <- Z[Z$Geneid %in% sigGenes$Geneid, ]
 
@@ -1010,54 +1015,40 @@ flybasenames_unique <- flybasenames %>%
   filter(n() == 1) %>%     # Keep only those with a single occurrence
   ungroup()
 
-
-
 Z <- Z %>%
   left_join(flybasenames_unique, by = c("Geneid" = "Geneid")) %>%
   mutate(
     Geneid = ifelse(!is.na(FB_gene_symbol), FB_gene_symbol, Geneid)  # Replace Geneid with FB_symbol if match exists
   ) %>%
   select(-FB_gene_symbol) 
-
-
-# Melt to long format
+```
+Melt to long format for ggplot2
+```
 Z_df <- melt(Z)
 Z_df <- na.omit(Z_df)
 colnames(Z_df) <- c("Gene", "Sample", "Expression")
-
-
-
-
-
-
-
-# Convert to wide matrix format for clustering
-Z_df_matrix <- dcast(Z_df, Gene ~ Sample, value.var = "Expression")
-rownames(Z_df_matrix) <- Z_df_matrix$Gene
-
-
-
-
-# Convert to wide matrix format for clustering
+```
+Convert to wide matrix format for clustering
+```
 Z_df_matrix <- dcast(Z_df, Gene ~ Sample, value.var = "Expression")
 rownames(Z_df_matrix) <- Z_df_matrix$Gene
 Z_df_matrix$Gene <- NULL
-
-
-
-# Compute distances and clusters
+```
+Compute distances and clusters
+```
 distanceGene <- dist(Z_df_matrix)
 distanceSample <- dist(t(Z_df_matrix))
 clusterSample <- hclust(distanceSample, method = "average")
 clusterGene <- hclust(distanceGene, method = "average")
-
-# Construct a dendogram for samples
-library(ggdendro)
+```
+Construct a dendogram for samples
+```
 sampleModel <- as.dendrogram(clusterSample)
 sampleDendrogramData <- segment(dendro_data(sampleModel, type = "rectangle"))
 sampleDendrogram <- ggplot(sampleDendrogramData) + geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) + theme_dendro()
-
-#make dendogram for genes 
+```
+Make dendogram for genes 
+```
 geneModel <- as.dendrogram(clusterGene)
 geneDendrogramData <- segment(dendro_data(geneModel, type = "rectangle"))
 geneDendrogram <- ggplot(geneDendrogramData) +
@@ -1066,52 +1057,26 @@ geneDendrogram <- ggplot(geneDendrogramData) +
   scale_y_reverse(expand = c(0, 0)) +
   scale_x_continuous(expand = c(0, 0)) +
   theme_dendro()
-
-
-
-
-# Re-factor samples for ggplot2 for ordering 
+```
+Re-factor samples for ggplot2 for ordering 
+```
 Z_df$Sample  <- factor(Z_df$Sample , levels=c("MSG","PSG","SalG","Head"))
 Z_df$Gene <- factor(Z_df$Gene, levels=clusterGene$labels[clusterGene$order])
-
-#define your color 
-library(khroma)
-vik <- color("vik")
-vanimo <- color("vanimo")
-batlowK <- color("batlowK")
-tokyo <- color("tokyo")
-oslo <- color("oslo")
-#install.packages("viridis") 
-library(viridis)
-vanimo <- color("vanimo")
-batlowK <- color("batlowK")
-tokyo <- color("tokyo")
-oslo <- color("oslo")
-bam <- color("bam")
-roma <- color("roma")
-berlin <- color("berlin")
-hawaii <- color("hawaii")
-broc <- color("broc")
-
-#install.packages("pals")
-#install.packages("viridis") 
-library(viridis)
+```
+Define your color palette
+```
 library(pals)
-
 ocean.balance <- ocean.balance
 coolwarm <- coolwarm
-# Construct the heatmap
+```
+Construct the heatmap
+```
 heatmap <- ggplot(Z_df, aes(x=Sample, y=Gene, fill=Expression)) + geom_raster() + scale_fill_gradientn(colours =coolwarm(256)) + theme(axis.text.x=element_text(angle=65, hjust=1), axis.text.y = element_blank(), axis.ticks.y=element_blank())
 heatmap
-
-#rev(roma(256))) # to reverse color in ggplot2
-
-library(gridExtra)
 grid.arrange(geneDendrogram, heatmap, ncol=1, heights=c(1,5))
-
-# ─────────────────────────────────────────
-# Final plot using cowplot (clean layout)
-# ─────────────────────────────────────────
+```
+Clean up the plot layout with cowplot 
+```
 # Create heatmap
 heatmap <- ggplot(Z_df, aes(x = Sample, y = Gene, fill = Expression)) +
   geom_raster() +
@@ -1123,11 +1088,11 @@ heatmap <- ggplot(Z_df, aes(x = Sample, y = Gene, fill = Expression)) +
     axis.ticks.y = element_blank(),
     strip.text = element_text(size = 10, face = "bold"
     ))
-
 heatmap
+
 # Remove duplicated legend
 heatmap_clean <- heatmap + theme(legend.position = "none")
-library(cowplot)
+
 # Arrange plots
 #top_row <- plot_grid(NULL, sampleDendrogram, ncol = 2, rel_widths = c(0.2, 1))
 mid_row <- plot_grid(geneDendrogram, heatmap_clean, ncol = 2, rel_widths = c(0.2, 1))
@@ -1149,83 +1114,13 @@ main_panel <- geneDendrogram + heatmap_clean + plot_layout(ncol = 2, widths = c(
 main_panel <- geneDendrogram + heatmap_clean + 
   plot_layout(ncol = 2, widths = c(1, 6))  & 
   theme(plot.margin = margin(0, 0, 0, 0))
+
 # Add legend to the right
 final_plot <- main_panel + plot_spacer() + 
   plot_layout(ncol = 2, widths = c(5, 0.5))
 
-install.packages("pals")
-
-library(cowplot)
 legend <- get_legend(heatmap)
 final_combined <- plot_grid(main_panel, legend, rel_widths = c(1, 0.12))
 
 final_plot
-
-# Now split the heatmap into seperate heatmaps per cluster
-
-# Choose how many clusters you'd like to split genes into
-gene_clusters <- cutree(clusterGene, k = 3)  # or k = 3, 5, etc.
-
-# Add cluster assignments to the data
-Z_df$GeneCluster <- gene_clusters[as.character(Z_df$Gene)]
-
-heatmap_clustered <- ggplot(Z_df, aes(x = Sample, y = Gene, fill = Expression)) +
-  geom_raster() +
-  facet_wrap(~ GeneCluster, scales = "free_y", ncol = 1) +  # one panel per cluster
-  scale_fill_gradientn(colours = batlowK(256)) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 65, hjust = 1),
-    axis.text.y = element_text(size = 6),
-    axis.ticks.y = element_blank(),
-    strip.text = element_text(size = 10, face = "bold")
-  )
-
-
-# Remove duplicated legend
-heatmap_clustered_clean <- heatmap_clustered + theme(legend.position = "none")
-
-# Arrange plots
-top_row <- plot_grid(NULL, sampleDendrogram, ncol = 2, rel_widths = c(0.2, 1))
-mid_row <- plot_grid(geneDendrogram, heatmap_clustered_clean, ncol = 2, rel_widths = c(0.2, 1))
-legend <- get_legend(heatmap_clustered)
-
-# Final layout
-final_plot <- plot_grid(top_row, mid_row, ncol = 1, rel_heights = c(0.2, 1))
-plot_grid(final_plot, legend, rel_widths = c(1, 0.12))
-
-
-# Save separate plots for each cluster so they are readable 
-
-# Ensure gene cluster labels are present
-gene_clusters <- cutree(clusterGene, k = 3)  # adjust k as needed
-Z_df$GeneCluster <- gene_clusters[as.character(Z_df$Gene)]
-
-unique_clusters <- sort(unique(Z_df$GeneCluster))
-
-for (clust in unique_clusters) {
-  subset_df <- Z_df[Z_df$GeneCluster == clust, ]
-  
-  p <- ggplot(subset_df, aes(x = Sample, y = Gene, fill = Expression)) +
-    geom_raster() +
-    scale_fill_gradientn(colours = vanimo(256)) +
-    ggtitle(paste("Gene Cluster", clust)) +
-    theme_minimal() +
-    theme(
-      axis.text.x = element_text(angle = 65, hjust = 1),
-      axis.text.y = element_text(size = 6),
-      axis.ticks.y = element_blank(),
-      plot.title = element_text(size = 14, face = "bold")
-    )
-  
-  # Save each plot
-  ggsave(
-    filename = paste0("gene_cluster_tissue_", clust, ".png"),
-    plot = p,
-    width = 8,
-    height = 16,
-    dpi = 300
-  )
-}
-
-
+```
