@@ -6,7 +6,7 @@
 2. [Adapter Trimming](#adapter-trimming-using-fastp)
 3. [Read Mapping to Reference Genome](#star-mapping-of-rnaseq-data-to-the-<em>Plodia</em>-reference-genome-(GCF-027563975.2))
 4. [Read Counting](#read-counts-with-featurecounts)
-5. Differential Expression Analysis (DESeq2)
+5. [Differential Expression Analysis (DESeq2)](#differential-expression-analysis-with-deseq2-in-rstudio)
 6. Gene Identification through Homology Searches
 7. Visualization of Differential Expression Analysis Results in R
     
@@ -617,7 +617,7 @@ write.table(topGenesMSG_PSG, file="MSG_PSG_new_anno_results.txt", quote=F, sep="
 ```
 Now trying to identify unidentified genes by getting blasting to <em>Drosophila</em> on FlyBase  
 
-
+## Homology Searches 
 
 
 ########################## Need to reformat stuff below still
