@@ -8,7 +8,7 @@
 4. [Read Counting](#read-counts-with-featurecounts)
 5. [Differential Expression Analysis (DESeq2)](#differential-expression-analysis-with-deseq2-in-rstudio)
 7. [Gene Identification through Flybase Homology Searches](#homology-searches-using-reciprocal-blastp-to-flybase)
-8. [TPM Normalization]
+8. [TPM Normalization](#TPM-Normalization)
 9. [Final Visualization of Differential Expression Analysis Results in R](#final-visualization-of-differential-expression-analysis-results-in-r)
     
 ### Tools Used 
