@@ -863,19 +863,18 @@ tpm_matrix <- tpm_matrix %>%
 ```
 If you want to sum the technical replicates in the PSG 
 ```
+# if you want to sum the technical replicates in the PSG 
 tpm_matrix <- tpm_matrix %>%
-  mutate(`1Bcoll` = rowSums(across(c(`1B_first_run`, `1B`)))) %>%
-  mutate(`2Bcoll` = rowSums(across(c(`2B_first_run`, `2B`)))) %>%
-  mutate(`3Bcoll` = rowSums(across(c(`3B_first_run`, `3B`)))) %>%
-  mutate(`4Bcoll` = rowSums(across(c(`4B_first_run`, `4B`)))) %>%
-  dplyr::select(-`1B`, -`2B`, -`3B`, -`4B`, -`1B_first_run`, -`2B_first_run`, -`3B_first_run`, -`4B_first_run` ) %>%
-  dplyr::rename(
-    `1B` = `1Bcoll`,
-    `2B` = `2Bcoll`,
-    `3B` = `3Bcoll`,
-    `4B` = `4Bcoll`)  %>%
-  select(order(colnames(tpm_matrix))) %>%
-  dplyr::select(Geneid, everything())
+  mutate(
+    `1B` = rowSums(select(., any_of(c("1B_first_run", "1B")))),
+    `2B` = rowSums(select(., any_of(c("2B_first_run", "2B")))),
+    `3B` = rowSums(select(., any_of(c("3B_first_run", "3B")))),
+    `4B` = rowSums(select(., any_of(c("4B_first_run", "4B"))))
+  ) %>%
+  select(-any_of(c(
+    "1B_first_run", "2B_first_run", "3B_first_run", "4B_first_run"
+  ))) %>%
+  select(Geneid, everything())
 
 LOC_geneid <- read_tsv("GeneID_to_LOC.txt")
 
