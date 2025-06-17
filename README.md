@@ -863,27 +863,20 @@ tpm_matrix <- tpm_matrix %>%
 ```
 If you want to sum the technical replicates in the PSG 
 ```
-# if you want to sum the technical replicates in the PSG 
+# To sum the technical replicates for the PSG 
 tpm_matrix <- tpm_matrix %>%
+  rowwise() %>%
   mutate(
-    `1B` = rowSums(select(., any_of(c("1B_first_run", "1B")))),
-    `2B` = rowSums(select(., any_of(c("2B_first_run", "2B")))),
-    `3B` = rowSums(select(., any_of(c("3B_first_run", "3B")))),
-    `4B` = rowSums(select(., any_of(c("4B_first_run", "4B"))))
+    `1B` = sum(c_across(any_of(c("1B_first_run", "1B"))), na.rm = TRUE) / 2,
+    `2B` = sum(c_across(any_of(c("2B_first_run", "2B"))), na.rm = TRUE) / 2,
+    `3B` = sum(c_across(any_of(c("3B_first_run", "3B"))), na.rm = TRUE) / 2,
+    `4B` = sum(c_across(any_of(c("4B_first_run", "4B"))), na.rm = TRUE) / 2
   ) %>%
+  ungroup() %>%
   select(-any_of(c(
     "1B_first_run", "2B_first_run", "3B_first_run", "4B_first_run"
   ))) %>%
   select(Geneid, everything())
-
-LOC_geneid <- read_tsv("GeneID_to_LOC.txt")
-
-tpm_matrix <- tpm_matrix %>%
-  left_join(LOC_geneid, by = c("Geneid" = "LOC")) %>%  # Join on Geneid and LOC
-  mutate(
-    Geneid = ifelse(!is.na(prot), prot, Geneid)  # Replace Geneid with prot if there's a match
-  ) %>%
-  dplyr::select(-prot) 
 
 tpm_matrix <- tpm_matrix %>%
   mutate(
@@ -1090,19 +1083,44 @@ TPM_normalized_counts <- TPM_normalized_counts %>%
     TRUE ~ "ns"
   ))
 
-threshold <- 1000
-log2foldchange_threshold <- 5
 ```
 FINAL PLOT Now trim the volplot so nothing below a log2TPM of -2 is plotted 
 ```
 TPM_normalized_counts_filtered_byTPM <- TPM_normalized_counts %>%
 filter(log2(`Max(MSG,PSG)`) > -2)
 
+# now annotate only specified genes
+manual_annotations <- read_excel("ilPloInte3.2_manually_curated_gene_table.xlsx")
+
+manual_annotations <- manual_annotations %>%
+  select(`NCBI Gene ID`, Symbol)
+
+annotation_list <- trimws(readLines("volplot_annotation_list.txt"))
+
+
+
+TPM_normalized_counts_filtered_byTPM <-TPM_normalized_counts_filtered_byTPM %>%
+  left_join(manual_annotations, by = c("Geneid" = "NCBI Gene ID")) %>% 
+  mutate(
+    Geneid = ifelse(!is.na(`Symbol`), `Symbol`, Geneid)  # Replace Geneid with prot if there's a match
+  ) %>%
+  select(-`Symbol`) 
+
+
+TPM_normalized_counts_filtered_byTPM <- TPM_normalized_counts_filtered_byTPM %>%
+  filter(log2(`Max(MSG,PSG)`) > -2)
+
+TPM_normalized_counts_filtered_byTPM  <- TPM_normalized_counts_filtered_byTPM  %>%
+  mutate(direction = case_when(
+    padj < 0.05 & log2(`Max(MSG,PSG)`) > 0.1 & log2FoldChange > 0 ~ "up",
+    padj < 0.05 & log2(`Max(MSG,PSG)`) > 0.1 & log2FoldChange < 0 ~ "down",
+    TRUE ~ "ns"
+  ))
 
 vol_plot <- TPM_normalized_counts_filtered_byTPM %>%
   ggplot(aes(x = log2FoldChange, y = log2(`Max(MSG,PSG)`), color = direction)) +  
   scale_y_continuous( limits=c(-2, 20), expand=c(0,0)) +
-  scale_x_continuous( limits=c(-12, 12), expand=c(0,0)) +
+  scale_x_continuous( limits=c(-9, 12), expand=c(0,0)) +
   geom_point(data = filter(TPM_normalized_counts_filtered_byTPM, direction == "ns"),
              aes(x = log2FoldChange, y = log2(`Max(MSG,PSG)`), color = direction),
              show.legend = TRUE) +
@@ -1116,14 +1134,28 @@ vol_plot <- TPM_normalized_counts_filtered_byTPM %>%
   theme_classic() +
   theme(legend.title=element_blank())+
   ggtitle("MSG vs PSG") + theme(plot.title = element_text(hjust = 0.5)) +
-  geom_text_repel(aes(label = ifelse((log2(`Max(MSG,PSG)`) > 10 & direction != "ns") | ((log2FoldChange) < -5 & direction != "ns") | ((log2FoldChange) > 7 & direction != "ns"), Geneid, "")),
-                  color = "black", size = 3, nudge_y = 0.5, max.overlaps = 15) +
+  geom_label_repel(
+    aes(label = ifelse(Geneid %in% annotation_list, Geneid, "")),
+    color = "black",
+    size = 3,
+    nudge_y = 0.7,                  # Nudges label vertically
+    max.overlaps = Inf,
+    segment.color = "black",
+    segment.size = 0.3,
+    fill = alpha("white", 0.7),
+    label.r = unit(0, "lines"),     # No rounded corners
+    label.size = 0,                 # No label border
+    point.padding = 0,          # Ensures label does not overlap point
+    box.padding = 0             # Controls spacing around labels
+
+  ) +
   ylab("log2TPM") 
 
+vol_plot
 
-vol_plot 
+#export square PDF
 
-write.table(TPM_normalized_counts_filtered_byTPM, file="final_filtered_June10_volplot_MSG_vs_PSG.xlsx", quote=F, sep="\t", row.names=FALSE, na="")
+
 ```
 
 ## Final Visualization of Differential Expression Analysis Results in R
