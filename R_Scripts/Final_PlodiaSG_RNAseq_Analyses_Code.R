@@ -163,6 +163,7 @@ vol_plot <- topGenesMSG_PSG %>%
 vol_plot  
 
 #Add the XP for each LOC
+library(readxl)
 Geneid_XP <- read_excel("ilPloInte3.2_manually_curated_gene_table_final.xlsx") #gene annotation list 
 Geneid_XP <- Geneid_XP %>%
   select('Geneid', 'Protein accession') %>%
@@ -433,12 +434,10 @@ allGenesMSGvsPSG <- allGenesMSG_PSG_dds %>%
 
 # add a column to the table "all_genes_TPM_normalized_counts_final.tsv" you just generated that is the Max TPM value in MSG or PSG and save then read that file in
 
-TPM_normalized_counts <- read_table("all_genes_TPM_normalized_counts_final.tsv")
+TPM_normalized_counts <- read_excel("all_genes_TPM_normalized_counts_final.xlsx")
 TPM_normalized_counts <- TPM_normalized_counts %>%
-  select(Symbol, Geneid, `"Max(MSG,PSG)"`) %>%
-  rename(`"Max(MSG,PSG)"` = "Max(MSG,PSG)")  %>%
-  left_join(allGenesMSGvsPSG, by = c("Geneid" = "Geneid")) %>%
-  drop_na()
+  select(Symbol, Geneid, `Max(MSG,PSG)`) %>%
+  left_join(allGenesMSGvsPSG, by = c("Geneid" = "Geneid")) 
 
 
 # define significance by padj < 0.05 and TPM > 0.1 
@@ -697,9 +696,8 @@ legend <- get_legend(heatmap)
 # Final layout
 final_plot <- plot_grid(mid_row, ncol = 1, rel_heights = c(0.2, 1))
 plot_grid(final_plot, legend, rel_widths = c(1, 0.12))
-
   
   
 write.table(Z_df_matrix, file="heatmap_raw_table_229genes.tsv", quote=F, sep="\t",row.names=TRUE, na="")
 
-
+ 
