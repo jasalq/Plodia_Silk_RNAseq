@@ -931,7 +931,7 @@ tpm_matrix  <- tpm_matrix  %>%
 write.table(tpm_matrix, file="all_genes_TPM_normalized_counts_final.tsv", quote=F, sep="\t", row.names=FALSE, na="")
 
 ```
-## Now make a volcano plot Log2TPM vs Log2FC 
+### Now make a volcano plot Log2TPM vs Log2FC 
 ```
 allGenesMSGvsPSG <- allGenesMSG_PSG_dds %>%
   dplyr::select(Geneid, log2FoldChange, padj)
