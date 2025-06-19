@@ -697,6 +697,7 @@ legend <- get_legend(heatmap)
 # Final layout
 final_plot <- plot_grid(mid_row, ncol = 1, rel_heights = c(0.2, 1))
 plot_grid(final_plot, legend, rel_widths = c(1, 0.12))
+
   
   
 write.table(Z_df_matrix, file="heatmap_raw_table_229genes.tsv", quote=F, sep="\t",row.names=TRUE, na="")
