@@ -459,28 +459,51 @@ Remove columns other than GeneID and sample counts
 seqdata = seqdata %>%
   select(-Chr, -Start, -End, -Strand, -Length)
 ```
-Simplify to sample name for each counts column 
+Add your curated gene symbols instead 
 ```
- seqdata <- seqdata %>%
-  rename_with(~ ifelse(. == "Sample_ID", ., str_extract(., "(?<=star_pass2_new_annotation/)[^/]+?_pass2")), -1) %>%
-  rename_with(~ str_remove(., "_pass2$"), -1)
-```
-Adding identifiable names to previously annotated silk and AMP genes 
-```
-LOC_geneid <- read_tsv("GeneID_to_LOC.txt")
+#First add Geneid for each old symbol and then add the new symbol
+
+Symbol_to_Geneid <- read_excel("Plodia_gene_IDs.xlsx")
+
+Symbol_to_Geneid <- Symbol_to_Geneid %>%
+  select(Geneid,Symbol)%>%
+  distinct(Symbol, .keep_all = TRUE)
 
 seqdata <- seqdata %>%
-  left_join(LOC_geneid, by = c("Geneid" = "LOC")) %>%  # Join on Geneid and LOC
-  mutate(
-    Geneid = ifelse(!is.na(prot), prot, Geneid)  # Replace Geneid with prot if there's a match
-  ) %>%
-  select(-prot) 
+  rename("Geneid" = "old_symbol") 
+
+library(readxl)
+  
+manual_annotations <- read_excel("ilPloInte3.2_manually_curated_gene_table_final.xlsx")
+
+manual_annotations <- manual_annotations %>%
+  select(`Geneid`, Symbol)
+
+seqdata <- seqdata %>%
+  left_join(Symbol_to_Geneid, by = c("old_symbol" = "Symbol"))  %>%
+  drop_na()
+
+
+seqdata <- seqdata %>%
+left_join(manual_annotations, by = c("Geneid" = "Geneid"))  %>%
+  select(-`old_symbol`) 
+  
+# Simplify to sample name for each counts column 
+seqdata <- seqdata %>%
+  rename_with(~ ifelse(
+    . %in% c("Geneid", "Symbol"),
+    .,
+    str_extract(., "[^/]+(?=_pass2_mappedAligned\\.sortedByCoord\\.out\\.bam)")
+  ))
 ```
 Transform raw data to matrix of counts:
 ```
-countdata <- as.data.frame(seqdata)  %>%
+countdata <- seqdata  %>%
+  group_by(Geneid) %>%
+  summarise(across(where(is.numeric), sum, na.rm = TRUE)) %>%
   column_to_rownames("Geneid") %>%
   as.matrix()
+
 ```
 Remove the genes that are not/lowly expressed:
 ```
@@ -549,37 +572,18 @@ Get right contrasts, in this case MSG vs PSG
 ```
 Tissue_MSG_vs_PSG <- results(ddsObj, alpha = 0.05, contrast=c("Tissue","MSG","PSG"))
 ```
-Doing some count plots
-```
-plotCounts(ddsObj, "FibH", intgroup = "Tissue")
-plotCounts(ddsObj, "Ser1A", intgroup = "Tissue")
-```
 Display most diff expressed genes for this contrast with a padj < 0.05 and generate a tsv table
 ```
 sum(Tissue_MSG_vs_PSG$padj < 0.05, na.rm = TRUE)
-
 topGenesMSG_PSG <- as.data.frame(Tissue_MSG_vs_PSG) %>%
   rownames_to_column("Geneid") %>% 
   arrange(padj) %>% 
-  head(2898)
-
+  head(2914)
 allGenesMSG_PSG_dds <- as.data.frame(Tissue_MSG_vs_PSG) %>%
   rownames_to_column("Geneid") %>% 
-  arrange(padj) 
-write.table(allGenesMSG_PSG_dds, file="All_Plodia_genes_MSG_PSG_dds.tsv", quote=F, sep="\t", row.names = FALSE)
+  arrange(padj)
 ```
-
-Replace some of the LOC numbers with geneIDs
-```
-LOC_geneid <- read_tsv("GeneID_to_LOC.txt")
-
-topGenesMSG_PSG <- topGenesMSG_PSG %>%
-  left_join(LOC_geneid, by = c("Geneid" = "LOC")) %>%  # Join on Geneid and LOC
-  mutate(
-   Geneid = ifelse(!is.na(prot), prot, Geneid)) %>%  # Replace Geneid with prot if there's a match
-  select(-prot) 
-```
-Generate preliminary Log2FoldChange vs Padj Volcano Plot
+A quick volcano plot
 ```
 topGenesMSG_PSG <- topGenesMSG_PSG %>%
   mutate(direction = case_when(
@@ -587,19 +591,7 @@ topGenesMSG_PSG <- topGenesMSG_PSG %>%
     padj < 0.05 & log2FoldChange < 0 ~ "down",
     TRUE ~ "ns"
   ))
-# trying to force significance level to be right in box plot but this doesn't work because the box plot code takes ddsObj
-topGenesMSG_PSG <- topGenesMSG_PSG %>%
-  mutate(sig = case_when(
-    padj < 0.05 & log2FoldChange > 0 ~ "*",
-    padj < 0.01 & log2FoldChange > 0 ~ "**",
-    padj < 0.001 & log2FoldChange > 0 ~ "***",
-    padj < 0.05 & log2FoldChange < 0 ~ "*",
-    padj < 0.01 & log2FoldChange < 0 ~ "**",
-    padj < 0.001 & log2FoldChange < 0 ~ "***",
-    padj > 0.05 ~ "ns"
-  ))
 
-threshold <- 1000 #assigning an arbitrary cutoff to label all points above this -log10(padj) value because the plot gets too crowded
 
 vol_plot <- topGenesMSG_PSG %>%
   ggplot(aes(x = log2FoldChange, y = -log10(padj), color = direction)) +  
@@ -613,59 +605,22 @@ vol_plot <- topGenesMSG_PSG %>%
   geom_text(aes(label = ifelse(-log10(padj) > threshold, Geneid, "")),
             color = "black", size = 3, nudge_y = 4)  
 vol_plot  
-
-write.table(topGenesMSG_PSG, file="MSG_PSG_new_anno_results.txt", quote=F, sep="\t")
-```
-**If you want to get a table with the normalized counts per tissue** 
-```
-counts_ddsObj <- counts(ddsObj, normalized=TRUE) %>%
-  as.data.frame() %>%
-  rownames_to_column(var = "Geneid")
-
-counts_ddsObj <- counts_ddsObj %>%
-  mutate(MSG_avg = rowMeans(select(., ends_with("A")))) %>%
-  mutate(PSG_avg = rowMeans(select(., ends_with("B"))))%>%
-  mutate(SalG_avg = rowMeans(select(., ends_with("C"))))%>%
-  mutate(Head_avg = rowMeans(select(., ends_with("D")) %>% select(where(is.numeric)))) %>%
-  select("Geneid", ends_with("avg"), ends_with("A"), ends_with("B"), ends_with("C"), ends_with("D"),  everything()) 
-
-counts_ddsObj <- counts_ddsObj %>%
-  left_join(LOC_geneid, by = c("Geneid" = "LOC")) %>%  # Join on Geneid and LOC
-  mutate(
-    Geneid = ifelse(!is.na(prot), prot, Geneid)  # Replace Geneid with prot if there's a match
-  ) %>%
-  select(-prot) 
-
-counts_ddsObj <- counts_ddsObj %>%
-  left_join(flybase_results_clean, by = c("Geneid" = "Symbol"))%>%
-  relocate("FB_gene_symbol", .after = "Geneid")%>%
-  relocate("gene_fullname", .after = "FB_gene_symbol") %>%
-  left_join(Plodia_gene_IDs, by = c("Geneid" = "Symbol")) %>%
-  relocate("NCBI_Name", .after = "Geneid") %>%
-  select(-Flybase_prot, -Eval, -FlyBase_FBgn, -summary_text)
-
-write.table(counts_ddsObj, file="All_Plodia_SG_normalized_counts.tsv", quote=F, sep="\t", row.names=FALSE, na="")
-```
-
-Filter for comparisons 
-```
-counts_ddsObj <- counts_ddsObj[counts_ddsObj$Geneid %in% topGenesMSG_PSG$Geneid, ]
-write.table(counts_ddsObj, file="MSG_vs_PSG_4tissue_Plodia_normalized_counts.tsv", quote=F, sep="\t", row.names=FALSE, na="")
 ```
 
 ## Homology Searches Using Reciprocal BLASTp to Flybase
 *Add the XP (protein sequence) for each gene in the Plodia genome and make a list of all the <em>Plodia</em> proteins to blast*	 
 [Note: Plodia_gene_IDs.txt is downloaded from the NCBI RefSeq genome annotation package accession no. GCF_027563975.2]
 ```
-Geneid_XP <- read_tsv("Plodia_gene_IDs.txt")
+#Add the XP for each LOC
+Geneid_XP <- read_excel("ilPloInte3.2_manually_curated_gene_table_final.xlsx") #gene annotation list 
 Geneid_XP <- Geneid_XP %>%
-  select('Symbol','Protein accession') %>%
+  select('Geneid', 'Protein accession') %>%
   drop_na()
 
 All_Plodia_genes_for_flybase_blastp <-Geneid_XP %>%
   drop_na()  %>%
   select(`Protein accession`)
-write.table(All_Plodia_genes_for_flybase_blastp, file="All_Plodia_genes_for_flybase_prot_accessions.txt", quote=F, sep="\t")
+write.table(All_Plodia_genes_for_flybase_blastp, file="All_Plodia_genes_for_flybase_prot_accessions.txt", quote=F, sep="\t",row.names=FALSE)
 ```
 Visit [NCBI Batch Entrez](#https://www.ncbi.nlm.nih.gov/sites/batchentrez) and select protein database and upload the All_Plodia_genes_for_flybase_prot_accessions.txt you generated to retrieve a FASTA file with all the amino acid sequences for each of the proteins in the list you just generated
 
@@ -714,17 +669,18 @@ flybase_results <- read_tsv("all_Plodia_proteins_for_flybase.results.txt", col_n
 ```
 Download and read in the following tables from the latest [FlyBase genome release](#https://flybase.org/)
 ```
+# input accessions in protein database https://www.ncbi.nlm.nih.gov/sites/batchentrez to get fasta with amino acid sequences 
+flybase_results <- read_tsv("all_Plodia_proteins_for_flybase.results.txt", col_names=FALSE)
 flybase_prot_to_Symbol <- read_tsv("dmel_unique_protein_isoforms_fb_2025_01.tsv", col_names=TRUE, comment="#")
 flybase_gn_to_bpp <- read_tsv("fbgn_fbtr_fbpp_expanded_fb_2025_01.tsv", col_names=TRUE, comment="#") 
 flybase_gn_summary <- read_tsv("automated_gene_summaries_fb_2025_01.tsv", col_names=TRUE, comment="#") 
-```
-Do some reformatting of the tables to extract the pertinent information
-```
+
+
 flybase_prot_to_Symbol<- flybase_prot_to_Symbol %>%
   select(FBgn, FB_gene_symbol) %>%
   distinct(FBgn, .keep_all = TRUE) %>%
   left_join(flybase_gn_summary, by = c("FBgn" = "FBgn"))
-  
+
 flybase_gn_to_bpp <- flybase_gn_to_bpp %>%
   select(gene_ID, gene_fullname, polypeptide_ID) %>%
   distinct(polypeptide_ID, .keep_all = TRUE) %>%
@@ -732,14 +688,14 @@ flybase_gn_to_bpp <- flybase_gn_to_bpp %>%
   drop_na()
 
 flybase_results <- flybase_results %>%
-    select(X1,X2,X11)
+  select(X1,X2,X11)
 
 colnames(flybase_results)  <- c("Protein", "Flybase_prot", "Eval")
 
 flybase_results <- flybase_results %>%
   left_join(Geneid_XP, by = c("Protein" = "Protein accession")) %>%
-  relocate("Symbol", .after = "Protein") %>%
-  group_by(Symbol) %>%
+  relocate("Geneid", .after = "Protein") %>%
+  group_by(Geneid) %>%
   slice_min(order_by = .data$Eval, with_ties = FALSE) %>%
   ungroup() %>%
   left_join(flybase_gn_to_bpp, by = c("Flybase_prot" = "polypeptide_ID")) %>%
@@ -747,56 +703,52 @@ flybase_results <- flybase_results %>%
 
 flybase_results_clean <- flybase_results %>%
   select(-Protein)
-Plodia_gene_IDs <- read_tsv("Plodia_gene_IDs.tsv", col_names=TRUE, comment="#") 
+
+Plodia_gene_IDs <- read_excel("ilPloInte3.2_manually_curated_gene_table_final.xlsx", col_names=TRUE) 
 Plodia_gene_IDs <- Plodia_gene_IDs %>%
-  select(Symbol, Name) %>%
+  select(Geneid, Symbol, Name) %>%
   rename("Name" = "NCBI_Name")  %>%
   distinct(Symbol, .keep_all = TRUE)
-```
-**Finally add the flybase information for each Plodia gene in your DESeq2 results matrix and output a final table**
-```  
+
+
 topGenesMSG_PSG <- topGenesMSG_PSG %>%
-  left_join(flybase_results_clean, by = c("Geneid" = "Symbol"))%>%
-  relocate("FB_gene_symbol", .after = "Geneid")%>%
-  relocate("gene_fullname", .after = "FB_gene_symbol") %>%
-  left_join(Plodia_gene_IDs, by = c("Geneid" = "Symbol")) %>%
+  left_join(Plodia_gene_IDs, by = c("Geneid" = "Geneid")) %>%
   relocate("NCBI_Name", .after = "Geneid")
 
-write.table(topGenesMSG_PSG, file="topGenesMSG_PSG_FINAL_Seq_runs_comb_4tissue.tsv", quote=F, sep="\t",row.names=FALSE, na="")
+topGenesMSG_PSG <- topGenesMSG_PSG %>%
+  relocate("Symbol", .after = "Geneid")
+
+topGenesMSG_PSG <- topGenesMSG_PSG %>%
+  left_join(flybase_results_clean, by = c("Geneid" = "Geneid"))
+
+
+write.table(topGenesMSG_PSG, file="DESeq2_Results_MSG_vs_PSG.tsv", quote=F, sep="\t",row.names=FALSE, na="")
+
 ```
-
-I still have a lot of uncharacterized genes so I am trying to get info for uncharacterized genes from the protein name description column from the <em>Plodia</em> genome annotation information table 
+### Now to add the normalized counts per tissue from DESeq2
 ```
-topGenesMSGvsPSG <- read_excel("Plodia_SG_SalG_Diff_Exp_results_new_annotation.xlsx", sheet = "MSG_vs_PSG_4tissue") 
+counts_ddsObj <- counts(ddsObj, normalized=TRUE) %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "Geneid")
 
-Geneid_XP <- read_tsv("Plodia_gene_IDs.txt")
-Geneid_XP <- Geneid_XP %>%
-  select(Symbol, `Protein name`)
 
-uncharacterized_topGenesMSGvsPSG <- topGenesMSGvsPSG %>%
-  filter(str_detect(NCBI_Name, "uncharacterized"))
+counts_ddsObj <- counts_ddsObj %>%
+  mutate(MSG_avg = rowMeans(select(., ends_with("A")))) %>%
+  mutate(PSG_avg = rowMeans(select(., ends_with("B"))))%>%
+  mutate(SalG_avg = rowMeans(select(., ends_with("C"))))%>%
+  mutate(Head_avg = rowMeans(select(., ends_with("D")) %>% select(where(is.numeric)))) %>%
+  select("Geneid", ends_with("avg"), ends_with("A"), ends_with("B"), ends_with("C"), ends_with("D"),  everything()) 
 
-uncharacterized_topGenesMSGvsPSG <- uncharacterized_topGenesMSGvsPSG %>%
-left_join(Geneid_XP, by = c("Geneid" = "Symbol"))
+counts_ddsObj <- counts_ddsObj %>%
+  left_join(Plodia_gene_IDs, by = c("Geneid" = "Geneid")) %>%
+  relocate("NCBI_Name", .after = "Geneid")
 
-uncharacterized_topGenesMSGvsPSG <- uncharacterized_topGenesMSGvsPSG %>%
-  relocate("Protein name", .after = "NCBI_Name") %>%
-  filter(!str_detect(`Protein name`, regex("uncharacterized", ignore_case = TRUE)))
+counts_ddsObj <- counts_ddsObj %>%
+  left_join(flybase_results_clean, by = c("Geneid" = "Geneid"))%>%
+  relocate("MSG_avg", "PSG_avg", "SalG_avg", "Head_avg", "1A", "1B", "1C", "1D", "2A", "2B", "2C", "2D", "3A", "3B", "3C", "3D", "4A", "4B", "4C", "4D", .after = "Geneid") %>%
+  relocate("NCBI_Name", .after = "Geneid") 
 
-uncharacterized_topGenesMSGvsPSG <- uncharacterized_topGenesMSGvsPSG %>%
-  select(Geneid, `Protein name`)  %>%
-  distinct(Geneid, .keep_all = TRUE)
-
-topGenesMSGvsPSG <- read_excel("Plodia_SG_SalG_Diff_Exp_results_new_annotation.xlsx", sheet = "MSG_vs_PSG_4tissue") 
-
-topGenesMSGvsPSG <- topGenesMSGvsPSG %>% 
-  left_join(uncharacterized_topGenesMSGvsPSG, by = c("Geneid" = "Geneid")) %>%  # Join on Geneid and LOC
-  mutate(
-    NCBI_Name = ifelse(!is.na(`Protein name`), `Protein name`, NCBI_Name)  # Replace Geneid with prot if there's a match
-  ) %>%
-  select(-`Protein name`) 
-
-write.table(topGenesMSGvsPSG, file="topGenesMSG_PSG_FINAL_Seq_runs_comb_4tissue.tsv", quote=F, sep="\t", row.names=FALSE, na="")
+write.table(counts_ddsObj, file="All_Plodia_SG_DESeq2_normalized_counts.tsv", quote=F, sep="\t", row.names=FALSE, na="")
 ```
 ## TPM Normalization
 ```
@@ -808,6 +760,41 @@ library(tidyverse)
 Read the counts file in
 ```
 seqdata <- read_tsv("Pi_SG_SalG.new.annotation.featurecounts.txt", comment="#")
+```
+Add your curated gene symbols instead of old NCBI symbols 
+```
+Symbol_to_Geneid <- read_excel("Plodia_gene_IDs.xlsx")
+
+Symbol_to_Geneid <- Symbol_to_Geneid %>%
+  select(Geneid,Symbol)%>%
+  distinct(Symbol, .keep_all = TRUE)
+
+seqdata <- seqdata %>%
+  rename("Geneid" = "old_symbol") 
+
+manual_annotations <- read_excel("ilPloInte3.2_manually_curated_gene_table_final.xlsx")
+
+manual_annotations <- manual_annotations %>%
+  select(`Geneid`, Symbol)
+
+seqdata <- seqdata %>%
+  left_join(Symbol_to_Geneid, by = c("old_symbol" = "Symbol"))  %>%
+  drop_na()
+
+
+seqdata <- seqdata %>%
+  left_join(manual_annotations, by = c("Geneid" = "Geneid"))  %>%
+  select(-`old_symbol`) 
+
+```
+Simplify to sample name for each counts column 
+```
+seqdata <- seqdata %>%
+  rename_with(~ ifelse(
+    str_starts(., "/"),
+    str_extract(., "[^/]+(?=_pass2_mappedAligned\\.sortedByCoord\\.out\\.bam)"),
+    .
+  ))
 ```
 Get gene lengths 
 ```
@@ -823,17 +810,19 @@ Remove columns other than GeneID and sample counts
 seqdata = seqdata %>%
   dplyr::select(-Chr, -Start, -End, -Strand, -Length)
 ```
-Simplify to sample name for each counts column 
+Add the true NCBI gene id for each gene not the NCBI symbol by retrieving them from the NCBI spreadsheet but add "LOC" to Geneid number except for mitochondrial genes
 ```
-seqdata <- seqdata %>%
-  rename_with(~ ifelse(. == "Sample_ID", ., str_extract(., "(?<=star_pass2_new_annotation/)[^/]+?_pass2")), -1) %>%
-  rename_with(~ str_remove(., "_pass2$"), -1)
+Symbol_to_Geneid <- read_excel("Plodia_gene_IDs.xlsx")
+Symbol_to_Geneid <- Symbol_to_Geneid %>%
+  select(Geneid,Symbol)
 ```
 Transform raw data to matrix of counts:
 ```
 countdata <- as.data.frame(seqdata)  %>%
+  group_by(Geneid) %>%
+  summarise(across(where(is.numeric), sum, na.rm = TRUE)) %>%
   column_to_rownames("Geneid") %>%
-  as.matrix()
+  as.matrix() 
 
 counts_to_tpm <- function(counts, gene_lengths) {
   # Convert lengths from bp to kilobases
@@ -887,139 +876,8 @@ tpm_matrix <- tpm_matrix %>%
   ) %>%
   dplyr::select(Geneid, ends_with("avg"), ends_with("A"), ends_with("B"), ends_with("C"), ends_with("D"), everything())
 ```
-Edit the table to get rid of numbers in first column and header and input accessions in protein database https://www.ncbi.nlm.nih.gov/sites/batchentrez to get fasta with amino acid sequences 
+Now add your FlyBase matches to the TPM data 
 ```
-flybase_results <- read_tsv("all_Plodia_proteins_for_flybase.results.txt", col_names=FALSE)
-flybase_prot_to_Symbol <- read_tsv("dmel_unique_protein_isoforms_fb_2025_01.tsv", col_names=TRUE, comment="#")
-flybase_gn_to_bpp <- read_tsv("fbgn_fbtr_fbpp_expanded_fb_2025_01.tsv", col_names=TRUE, comment="#") 
-flybase_gn_summary <- read_tsv("automated_gene_summaries_fb_2025_01.tsv", col_names=TRUE, comment="#") 
-
-flybase_prot_to_Symbol<- flybase_prot_to_Symbol %>%
-  dplyr::select(FBgn, FB_gene_symbol) %>%
-  distinct(FBgn, .keep_all = TRUE) %>%
-  left_join(flybase_gn_summary, by = c("FBgn" = "FBgn"))
-
-flybase_gn_to_bpp <- flybase_gn_to_bpp %>%
-  dplyr::select(gene_ID, gene_fullname, polypeptide_ID) %>%
-  distinct(polypeptide_ID, .keep_all = TRUE) %>%
-  rename("gene_ID" = "FlyBase_FBgn") %>%
-  drop_na()
-
-flybase_results <- flybase_results %>%
-  dplyr::select(X1,X2,X11)
-
-colnames(flybase_results)  <- c("Protein", "Flybase_prot", "Eval")
-
-Geneid_XP <- read_tsv("Plodia_gene_IDs.txt")
-Geneid_XP <- Geneid_XP %>%
-  dplyr::select('Symbol','Protein accession') %>%
-  drop_na()
-
-
-flybase_results <- flybase_results %>%
-  left_join(Geneid_XP, by = c("Protein" = "Protein accession")) %>%
-  relocate("Symbol", .after = "Protein") %>%
-  group_by(Symbol) %>%
-  slice_min(order_by = .data$Eval, with_ties = FALSE) %>%
-  ungroup() %>%
-  left_join(flybase_gn_to_bpp, by = c("Flybase_prot" = "polypeptide_ID")) %>%
-  left_join(flybase_prot_to_Symbol, by = c("FlyBase_FBgn" = "FBgn")) 
-
-flybase_results_clean <- flybase_results %>%
-  dplyr::select(-Protein)
-
-Plodia_gene_IDs <- read_tsv("Plodia_gene_IDs.tsv", col_names=TRUE, comment="#") 
-Plodia_gene_IDs <- Plodia_gene_IDs %>%
-  dplyr::select(Symbol, Name) %>%
-  rename("Name" = "NCBI_Name")  %>%
-  distinct(Symbol, .keep_all = TRUE)
-
-tpm_matrix  <- tpm_matrix  %>%
-  left_join(flybase_results_clean, by = c("Geneid" = "Symbol"))%>%
-  relocate("FB_gene_symbol", .after = "Geneid")%>%
-  relocate("gene_fullname", .after = "FB_gene_symbol") %>%
-  left_join(Plodia_gene_IDs, by = c("Geneid" = "Symbol")) %>%
-  relocate("NCBI_Name", .after = "Geneid") %>%
-  dplyr::select(-Flybase_prot, -Eval, -FlyBase_FBgn, -summary_text)
-
-write.table(tpm_matrix, file="all_genes_TPM_normalized_counts_PSG_coll.tsv", quote=F, sep="\t", row.names=FALSE, na="")
-
-
-threshold <- 6 #assigning an arbitrary cutoff to label all points above this -log10(padj) value because the plot gets too crowded
-
-library(readxl)
-TPM_normalized_counts <- read_excel("all_genes_TPM_normalized_counts_PSG_coll.xlsx") 
-
-topGenesMSGvsPSG <- read_tsv("topGenesMSG_PSG_FINAL_Seq_runs_comb_4tissue.tsv", col_names=TRUE, comment="#")
-
-topGenesMSGvsPSG <- topGenesMSGvsPSG %>%
-  dplyr::select(Geneid, log2FoldChange)
-
-TPM_normalized_counts <- TPM_normalized_counts %>%
-  dplyr::select(Geneid, `Max(MSG,PSG)`) %>%
-  left_join(topGenesMSGvsPSG, by = c("Geneid" = "Geneid")) %>%
-  drop_na()
-```
-Add flybase names for LOCs
-```
-topGenesMSGvsPSG <- read_tsv("topGenesMSG_PSG_FINAL_Seq_runs_comb_4tissue.tsv", col_names=TRUE, comment="#")
-
-flybasenames <- topGenesMSGvsPSG %>%
-  select(Geneid, FB_gene_symbol) %>%
-  drop_na() %>%
-  add_count(Geneid) %>%
-  filter(n == 1) %>%
-  select(-n)
-
-flybasenames_unique <- flybasenames %>%
-  group_by(FB_gene_symbol) %>%
-  filter(n() == 1) %>%     # Keep only those with a single occurrence
-  ungroup()
-
-TPM_normalized_counts <- TPM_normalized_counts%>%
-  left_join(flybasenames_unique, by = c("Geneid" = "Geneid")) %>%
-  mutate(
-    Geneid = ifelse(!is.na(FB_gene_symbol), FB_gene_symbol, Geneid)  # Replace Geneid with FB_symbol if match exists
-  ) %>%
-  select(-FB_gene_symbol) 
-
-# define significance by padj < 0.05 and TPM > 0.1 
-TPM_normalized_counts <- TPM_normalized_counts %>%
-  mutate(direction = case_when(
-    padj < 0.05 & log2(`Max(MSG,PSG)`) > 0.1 & log2FoldChange > 0 ~ "up",
-    padj < 0.05 & log2(`Max(MSG,PSG)`) > 0.1 & log2FoldChange < 0 ~ "down",
-    TRUE ~ "ns"
-  ))
-
-log2foldchange_threshold <- 5
-```
-Make a preliminary volcano plot 
-```
-library(ggrepel)
-library(ggplot2)
-vol_plot <- TPM_normalized_counts %>%
-  ggplot(aes(x = log2FoldChange, y = log2(`Max(MSG,PSG)`), color = direction)) +  
-  geom_point() +  
-  scale_color_manual(values = c("down" = "#26b3ff", "ns" = "grey", "up" = "#bb0c00"),  
-                     labels = c("down" = "PSG", "ns" = "Not significant", "up" = "MSG")) +
-  theme(legend.title=element_blank()) +
-  ggtitle("MSG vs PSG") + theme(plot.title = element_text(hjust = 0.5)) +
-  
-  geom_text_repel(aes(label = ifelse(log2(`Max(MSG,PSG)`) > threshold | abs(log2FoldChange) > log2foldchange_threshold, Geneid, "")),
-            color = "black", size = 3, nudge_y = 0.5, max.overlaps = 15)  +
-  
-  ylab("log2TPM")
-
-vol_plot  
-```
-
-Now with all genes plotted 
-```
-
-library(readxl)
-TPM_normalized_counts <- read_excel("all_genes_TPM_normalized_counts_PSG_coll.xlsx") 
-
-allGenesMSGvsPSG <- read_tsv("All_Plodia_genes_MSG_PSG_dds.tsv", col_names=TRUE, comment="#")
 flybase_results <- read_tsv("all_Plodia_proteins_for_flybase.results.txt", col_names=FALSE)
 flybase_prot_to_Symbol <- read_tsv("dmel_unique_protein_isoforms_fb_2025_01.tsv", col_names=TRUE, comment="#")
 flybase_gn_to_bpp <- read_tsv("fbgn_fbtr_fbpp_expanded_fb_2025_01.tsv", col_names=TRUE, comment="#") 
@@ -1044,8 +902,8 @@ colnames(flybase_results)  <- c("Protein", "Flybase_prot", "Eval")
 
 flybase_results <- flybase_results %>%
   left_join(Geneid_XP, by = c("Protein" = "Protein accession")) %>%
-  relocate("Symbol", .after = "Protein") %>%
-  group_by(Symbol) %>%
+  relocate("Geneid", .after = "Protein") %>%
+  group_by(Geneid) %>%
   slice_min(order_by = .data$Eval, with_ties = FALSE) %>%
   ungroup() %>%
   left_join(flybase_gn_to_bpp, by = c("Flybase_prot" = "polypeptide_ID")) %>%
@@ -1053,59 +911,88 @@ flybase_results <- flybase_results %>%
 
 flybase_results_clean <- flybase_results %>%
   select(-Protein)
-Plodia_gene_IDs <- read_tsv("Plodia_gene_IDs.tsv", col_names=TRUE, comment="#") 
+
+Plodia_gene_IDs <- read_excel("ilPloInte3.2_manually_curated_gene_table_final.xlsx", col_names=TRUE) 
 Plodia_gene_IDs <- Plodia_gene_IDs %>%
-  select(Symbol, Name) %>%
+  select(Geneid, Symbol, Name) %>%
   rename("Name" = "NCBI_Name")  %>%
   distinct(Symbol, .keep_all = TRUE)
 
-
-allGenesMSGvsPSG <- allGenesMSGvsPSG %>%
-  left_join(flybase_results_clean, by = c("Geneid" = "Symbol"))%>%
-  relocate("FB_gene_symbol", .after = "Geneid")%>%
+tpm_matrix  <- tpm_matrix  %>%
+  left_join(Plodia_gene_IDs, by = c("Geneid" = "Geneid")) %>%
+  relocate("NCBI_Name", .after = "Geneid") %>%
+  left_join(flybase_results_clean, by = c("Geneid" = "Geneid"))%>%
+  relocate("FB_gene_symbol", .after = "Symbol")%>%
   relocate("gene_fullname", .after = "FB_gene_symbol") %>%
-  left_join(Plodia_gene_IDs, by = c("Geneid" = "Symbol")) %>%
-  relocate("NCBI_Name", .after = "Geneid")
+  dplyr::select(-Flybase_prot, -Eval, -FlyBase_FBgn, -summary_text) %>%
+  relocate("Geneid", "NCBI_Name", .after = "Symbol") %>%
+  relocate("Symbol", .after = "Geneid") 
 
-allGenesMSGvsPSG <- allGenesMSGvsPSG %>%
+write.table(tpm_matrix, file="all_genes_TPM_normalized_counts_final.tsv", quote=F, sep="\t", row.names=FALSE, na="")
+
+```
+## Now make a volcano plot Log2TPM vs Log2FC 
+```
+allGenesMSGvsPSG <- allGenesMSG_PSG_dds %>%
   dplyr::select(Geneid, log2FoldChange, padj)
-
+```
+Add a column to the table "all_genes_TPM_normalized_counts_final.tsv" you just generated that is the Max TPM value in MSG or PSG and save then read that file in
+```
+TPM_normalized_counts <- read_table("all_genes_TPM_normalized_counts_final.tsv")
 TPM_normalized_counts <- TPM_normalized_counts %>%
-  dplyr::select(Geneid, `Max(MSG,PSG)`) %>%
+  select(Symbol, Geneid, `"Max(MSG,PSG)"`) %>%
+  rename(`"Max(MSG,PSG)"` = "Max(MSG,PSG)")  %>%
   left_join(allGenesMSGvsPSG, by = c("Geneid" = "Geneid")) %>%
   drop_na()
+```
 
-# define significance by padj < 0.05 and TPM > 0.1 
+Define significance by padj < 0.05 and TPM > 0.1 
+```
 TPM_normalized_counts <- TPM_normalized_counts %>%
+  
   mutate(direction = case_when(
     padj < 0.05 & log2(`Max(MSG,PSG)`) > 0.1 & log2FoldChange > 0 ~ "up",
     padj < 0.05 & log2(`Max(MSG,PSG)`) > 0.1 & log2FoldChange < 0 ~ "down",
     TRUE ~ "ns"
   ))
 
-```
-FINAL PLOT Now trim the volplot so nothing below a log2TPM of -2 is plotted 
-```
 TPM_normalized_counts_filtered_byTPM <- TPM_normalized_counts %>%
-filter(log2(`Max(MSG,PSG)`) > -2)
+  filter(log2(`Max(MSG,PSG)`) > -2)
 
-# now annotate only specified genes
-manual_annotations <- read_excel("ilPloInte3.2_manually_curated_gene_table.xlsx")
+library(ggrepel)
+
+vol_plot <- TPM_normalized_counts_filtered_byTPM %>%
+  ggplot(aes(x = log2FoldChange, y = log2(`Max(MSG,PSG)`), color = direction)) +  
+  scale_y_continuous( limits=c(-2, 20), expand=c(0,0)) +
+  scale_x_continuous( limits=c(-12, 12), expand=c(0,0)) +
+  geom_point(data = filter(TPM_normalized_counts_filtered_byTPM, direction == "ns"),
+             aes(x = log2FoldChange, y = log2(`Max(MSG,PSG)`), color = direction),
+             show.legend = TRUE) +
+  geom_point(data = filter(TPM_normalized_counts_filtered_byTPM, direction != "ns"),
+             aes(x = log2FoldChange, y = log2(`Max(MSG,PSG)`), color = direction)) +
+  
+  scale_color_manual(
+    values = c("down" = "#26b3ff", "up" = "#bb0c00", "ns" = "grey"),
+    labels = c("down" = "PSG", "up" = "MSG", "ns" = "Non-Significant")
+  ) +
+  theme_classic() +
+  theme(legend.title=element_blank())+
+  ggtitle("MSG vs PSG") + theme(plot.title = element_text(hjust = 0.5)) +
+  geom_text_repel(aes(label = ifelse((log2(`Max(MSG,PSG)`) > 10 & direction != "ns") | ((log2FoldChange) < -4 & direction != "ns") | ((log2FoldChange) > 6 & direction != "ns"), Symbol, "")),
+                  color = "black", size = 3, nudge_y = 0.5, max.overlaps = 15) +
+  ylab("log2TPM") 
+
+vol_plot 
+```
+
+Now annotate only specified genes
+```
+manual_annotations <- read_excel("ilPloInte3.2_manually_curated_gene_table_final.xlsx")
 
 manual_annotations <- manual_annotations %>%
-  select(`NCBI Gene ID`, Symbol)
+  select(`Geneid`, Symbol)
 
 annotation_list <- trimws(readLines("volplot_annotation_list.txt"))
-
-
-
-TPM_normalized_counts_filtered_byTPM <-TPM_normalized_counts_filtered_byTPM %>%
-  left_join(manual_annotations, by = c("Geneid" = "NCBI Gene ID")) %>% 
-  mutate(
-    Geneid = ifelse(!is.na(`Symbol`), `Symbol`, Geneid)  # Replace Geneid with prot if there's a match
-  ) %>%
-  select(-`Symbol`) 
-
 
 TPM_normalized_counts_filtered_byTPM <- TPM_normalized_counts_filtered_byTPM %>%
   filter(log2(`Max(MSG,PSG)`) > -2)
@@ -1135,7 +1022,7 @@ vol_plot <- TPM_normalized_counts_filtered_byTPM %>%
   theme(legend.title=element_blank())+
   ggtitle("MSG vs PSG") + theme(plot.title = element_text(hjust = 0.5)) +
   geom_label_repel(
-    aes(label = ifelse(Geneid %in% annotation_list, Geneid, "")),
+    aes(label = ifelse(Symbol %in% annotation_list, Symbol, "")),
     color = "black",
     size = 3,
     nudge_y = 0.7,                  # Nudges label vertically
@@ -1147,15 +1034,13 @@ vol_plot <- TPM_normalized_counts_filtered_byTPM %>%
     label.size = 0,                 # No label border
     point.padding = 0,          # Ensures label does not overlap point
     box.padding = 0             # Controls spacing around labels
-
+    
   ) +
   ylab("log2TPM") 
 
 vol_plot
 
-#export square PDF
-
-
+write.table(TPM_normalized_counts_filtered_byTPM, file="volplot_data.tsv", quote=F, sep="\t", row.names=FALSE, na="")
 ```
 
 ## Final Visualization of Differential Expression Analysis Results in R
@@ -1210,12 +1095,10 @@ Z <- as.data.frame(Z) %>%
 ```
 Add the Max average normalized counts PSG, MSG for filtering 
 ```
-setwd("/Users/jasminealqassar/Library/CloudStorage/GoogleDrive-j.alqassar@gwmail.gwu.edu/.shortcut-targets-by-id/1Hi7WIp_ha7vnyQUclvt-AJRl6AF8y1hj/Martin Lab/Jasmine/Pi_SG_SalG_RNAseq_results/Plodia_SG_Diff_Exp")
-
-normcounts <- read_excel("Plodia_SG_SalG_Diff_Exp_normalized_counts.xlsx", sheet = "MSG_vs_PSG_diff_exp_4tissue") 
+normcounts <- read_excel("All_Plodia_SG_DESeq2_normalized_counts.xls") 
 
 normcounts <- normcounts %>%
-  select(Geneid, `max(msg,psg)`)
+  select(Geneid, `Max(MSG,PSG)`) 
 
 topGenesMSG_PSG <- topGenesMSG_PSG %>%
   left_join(normcounts, by = c("Geneid" = "Geneid"))
@@ -1224,7 +1107,7 @@ topGenesMSG_PSG <- topGenesMSG_PSG %>%
 Filter significant genes (adjust as needed)
 ```
 sigGenes <- data.frame(Geneid = topGenesMSG_PSG$Geneid[
-  topGenesMSG_PSG$padj <= 0.01 & abs(topGenesMSG_PSG$log2FoldChange) > 3 & topGenesMSG_PSG$`max(msg,psg)` > 300
+  topGenesMSG_PSG$padj <= 0.01 & abs(topGenesMSG_PSG$log2FoldChange) > 3 & (topGenesMSG_PSG$`Max(MSG,PSG)`) > 300
 ])
 
 Z <- Z[Z$Geneid %in% sigGenes$Geneid, ]
@@ -1241,20 +1124,32 @@ flybasenames_unique <- flybasenames %>%
   filter(n() == 1) %>%     # Keep only those with a single occurrence
   ungroup()
 
-write.table(flybasenames_unique, file="flybasenames.tsv", quote=F, sep="\t", row.names=FALSE)
+# add your manual annotations
+manual_annotations <- read_excel("ilPloInte3.2_manually_curated_gene_table_final.xlsx")
+
+manual_annotations <- manual_annotations %>%
+  select(`Geneid`, Symbol)
 
 Z <- Z %>%
+  left_join(manual_annotations, by = c("Geneid" = "Geneid")) %>%
   left_join(flybasenames_unique, by = c("Geneid" = "Geneid")) %>%
   mutate(
-    Geneid = ifelse(!is.na(FB_gene_symbol), FB_gene_symbol, Geneid)  # Replace Geneid with FB_symbol if match exists
+    Symbol = ifelse(str_detect(Symbol, "LOC") & !is.na(FB_gene_symbol), FB_gene_symbol, Symbol)
   ) %>%
-  select(-FB_gene_symbol) 
- ```
+  select(-FB_gene_symbol, -Geneid) 
+```
+
 Melt to long format for ggplot2
 ```
+library(reshape2); library(ggdendro)
 Z_df <- melt(Z)
 Z_df <- na.omit(Z_df)
 colnames(Z_df) <- c("Gene", "Sample", "Expression")
+
+Z_df <- Z_df %>%
+  group_by(Gene, Sample) %>%
+  summarise(Expression = mean(Expression, na.rm = TRUE), .groups = "drop")
+
 ```
 Convert to wide matrix format for clustering
 ```
@@ -1288,40 +1183,19 @@ geneDendrogram <- ggplot(geneDendrogramData) +
   theme_dendro()
 ```
 
-Re-factor samples for ggplot2 (only applied gene clustering in final figure)
+Re-factor samples for ggplot2 
 ```
-#Z_df$Sample  <- factor(Z_df$Sample , levels=clusterSample$labels[clusterSample$order])
+Z_df$Sample  <- factor(Z_df$Sample , levels=c("MSG","PSG","SalG","Head"))
 Z_df$Gene <- factor(Z_df$Gene, levels=clusterGene$labels[clusterGene$order])
+
 ```
 
-Define your color palettes you might use
+Define your color palettes you might use and load libraries
 ```
 library(pals)
 ocean.balance <- ocean.balance
 coolwarm <- coolwarm
-```
-Now add your manual symbol annotations, download googlesheet as excel sheet
-```
-manual_annotations <- read_excel("ilPloInte3.2_manually_curated_gene_table.xlsx")
-
-manual_annotations <- manual_annotations %>%
-  select(`NCBI Gene ID`, Symbol)
-```
-Preserve factor levels from clustering
-```
-gene_levels <- levels(Z_df$Gene)
-```
-Create mapping vector for label replacement
-```
-label_map <- manual_annotations %>%
-  filter(`NCBI Gene ID` %in% gene_levels) %>%
-  distinct(`NCBI Gene ID`, Symbol) %>%
-  deframe()
-```
-Apply label map to factor levels (not values)
-```
-new_levels <- ifelse(gene_levels %in% names(label_map), label_map[gene_levels], gene_levels)
-levels(Z_df$Gene) <- new_levels
+library(gridExtra); library(patchwork); library(cowplot)
 ```
 Construct the heatmap
 ```
@@ -1331,6 +1205,7 @@ grid.arrange(geneDendrogram, heatmap, ncol=1, heights=c(1,5))
 ```
 Clean up the plot layout with cowplot 
 ```
+# Create heatmap
 heatmap <- ggplot(Z_df, aes(x = Sample, y = Gene, fill = Expression)) +
   geom_raster() +
   scale_fill_gradientn(colours = coolwarm(256)) +
@@ -1341,6 +1216,8 @@ heatmap <- ggplot(Z_df, aes(x = Sample, y = Gene, fill = Expression)) +
     axis.ticks.y = element_blank(),
     strip.text = element_text(size = 10, face = "bold"
     ))
+
+heatmap
 # Remove duplicated legend
 heatmap_clean <- heatmap + theme(legend.position = "none")
 
@@ -1352,6 +1229,8 @@ legend <- get_legend(heatmap)
 # Final layout
 final_plot <- plot_grid(mid_row, ncol = 1, rel_heights = c(0.2, 1))
 plot_grid(final_plot, legend, rel_widths = c(1, 0.12))
-
-write.table(Z_df_matrix, file="heatmap_raw_table_230genes.tsv", quote=F, sep="\t",row.names=TRUE, na="")
+  
+  
+write.table(Z_df_matrix, file="heatmap_raw_table_229genes.tsv", quote=F, sep="\t",row.names=TRUE, na="")
 ```
+
