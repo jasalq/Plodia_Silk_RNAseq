@@ -648,7 +648,7 @@ clusterSample <- hclust(distanceSample, method = "average")
 clusterGene <- hclust(distanceGene, method = "average")
 
 
-#make dendogram for genes Add commentMore actions
+#make dendogram for genes 
 geneModel <- as.dendrogram(clusterGene)
 geneDendrogramData <- segment(dendro_data(geneModel, type = "rectangle"))
 geneDendrogram <- ggplot(geneDendrogramData) +
