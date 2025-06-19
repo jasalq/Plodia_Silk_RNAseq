@@ -9,7 +9,7 @@
 5. [Differential Expression Analysis (DESeq2)](#differential-expression-analysis-with-deseq2-in-rstudio)
 7. [Gene Identification through Flybase Homology Searches](#homology-searches-using-reciprocal-blastp-to-flybase)
 8. [TPM Normalization](#TPM-Normalization)
-9. [Final Visualization of Differential Expression Analysis Results in R](#final-visualization-of-differential-expression-analysis-results-in-r)
+9. [Heatmap Visualization of Differential Expression Analysis Results in R](#heatmap-visualization-of-differential-expression-analysis-results-in-r)
     
 ### Tools Used 
 * Blast+ v.2.16.0+
@@ -1043,8 +1043,7 @@ vol_plot
 write.table(TPM_normalized_counts_filtered_byTPM, file="volplot_data.tsv", quote=F, sep="\t", row.names=FALSE, na="")
 ```
 
-## Final Visualization of Differential Expression Analysis Results in R
-### Generating a Heatmap with the expression z-score for the top 230 genes in the MSG vs PSG contrast for all 4 tissues 
+## Heatmap Visualization of Differential Expression Analysis Results in R 
 (based on the tutorial here https://genviz.org/module-04-expression/0004/02/01/DifferentialExpression/) 	
 
 An R script with all of the code detailed below is [here](#R_Scripts/heatmap_code_cleaned.R)
