@@ -7,7 +7,7 @@
 3. [Read Mapping to Reference Genome](#star-mapping-of-rnaseq-data-to-the-<em>Plodia</em>-reference-genome-(GCF-027563975.2))
 4. [Read Counting](#read-counts-with-featurecounts)
 5. [Differential Expression Analysis (DESeq2)](#differential-expression-analysis-with-deseq2-in-rstudio)
-7. [Gene Identification through Flybase Homology Searches](#homology-searches-using-reciprocal-blastp-to-flybase)
+7. [Gene Identification through FlyBase Homology Searches](#homology-searches-using-reciprocal-blastp-to-flybase)
 8. [TPM Normalization](#TPM-Normalization)
 9. [Heatmap Visualization of Differential Expression Analysis Results in R](#heatmap-visualization-of-differential-expression-analysis-results-in-r)
     
@@ -607,7 +607,7 @@ vol_plot <- topGenesMSG_PSG %>%
 vol_plot  
 ```
 
-## Homology Searches Using Reciprocal BLASTp to Flybase
+## Homology Searches Using Reciprocal BLASTp to FlyBase
 *Add the XP (protein sequence) for each gene in the Plodia genome and make a list of all the <em>Plodia</em> proteins to blast*	 
 [Note: Plodia_gene_IDs.txt is downloaded from the NCBI RefSeq genome annotation package accession no. GCF_027563975.2]
 ```
