@@ -579,6 +579,7 @@ topGenesMSG_PSG <- as.data.frame(Tissue_MSG_vs_PSG) %>%
   rownames_to_column("Geneid") %>% 
   arrange(padj) %>% 
   head(2914)
+
 allGenesMSG_PSG_dds <- as.data.frame(Tissue_MSG_vs_PSG) %>%
   rownames_to_column("Geneid") %>% 
   arrange(padj)
@@ -936,9 +937,9 @@ write.table(tpm_matrix, file="all_genes_TPM_normalized_counts_final.tsv", quote=
 allGenesMSGvsPSG <- allGenesMSG_PSG_dds %>%
   dplyr::select(Geneid, log2FoldChange, padj)
 ```
-Add a column to the table "all_genes_TPM_normalized_counts_final.tsv" you just generated that is the Max TPM value in MSG or PSG and save then read that file in
+Add a column to the table "all_genes_TPM_normalized_counts_final.tsv" you just generated that is the Max TPM value in MSG or PSG and save as excel sheet then read that file in
 ```
-TPM_normalized_counts <- read_table("all_genes_TPM_normalized_counts_final.tsv")
+TPM_normalized_counts <- read_excel("all_genes_TPM_normalized_counts_final.xlsx")
 TPM_normalized_counts <- TPM_normalized_counts %>%
   select(Symbol, Geneid, `"Max(MSG,PSG)"`) %>%
   rename(`"Max(MSG,PSG)"` = "Max(MSG,PSG)")  %>%
