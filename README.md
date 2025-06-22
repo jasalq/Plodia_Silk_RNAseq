@@ -1,5 +1,11 @@
 # Plodia_Silk_RNAseq
-[Description for project with the pre-print link]
+<body>  
+This repository contains all code associated with the manuscript Alqassar et al. 2025 <a href=""> Regionalization of gene expression and cell types in the silk gland of the pantry moth <em>Plodia interpunctella </em> </a>. The code found in this repository processes, maps, and performs differential expression analyses on RNA sequencing data generated during the study to study differences in gene expression between different sections of silk gland tissue.		
+<body/>	
+<br><br>	
+<strong>Contact info</strong>: Jasmine Alqassar (j.alqassar@gwu.edu) and Arnaud Martin (arnaud@gwu.edu)
+<br><br>
+<strong>Data Availability</strong>: All sequencing data generated during this study has been deposited in the NCBI Sequence Read Archive under BioProject PRJNA1241317. 
 
 ## Pipeline Outline 
 1. [RNAseq Quality Assessment](#assessment-of-rna-sequencing-quality-using-fastqc) 
