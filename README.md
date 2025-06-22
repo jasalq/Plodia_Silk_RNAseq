@@ -10,7 +10,7 @@ This repository contains all code associated with the manuscript Alqassar et al.
 ## Pipeline Outline 
 1. [RNAseq Quality Assessment](#assessment-of-rna-sequencing-quality-using-fastqc) 
 2. [Adapter Trimming](#adapter-trimming-using-fastp)
-3. [Read Mapping to the Reference Genome](#star-mapping-of-rnaseq-data-to-the-<em>Plodia</em>-reference-genome-(GCF-027563975.2))
+3. [Read Mapping to the Reference Genome](#star-mapping-of-rnaseq-data-to-the-plodia-reference-genome-gcf_0275639752)
 5. [Read Counting](#read-counts-with-featurecounts)
 6. [Differential Expression Analysis (DESeq2)](#differential-expression-analysis-with-deseq2-in-rstudio)
 7. [Gene Identification through FlyBase Homology Searches](#homology-searches-using-reciprocal-blastp-to-flybase)
