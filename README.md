@@ -14,7 +14,7 @@ This repository contains all code associated with the manuscript Alqassar et al.
 5. [Read Counting](#read-counts-with-featurecounts)
 6. [Differential Expression Analysis (DESeq2)](#differential-expression-analysis-with-deseq2-in-rstudio)
 7. [Gene Identification through FlyBase Homology Searches](#homology-searches-using-reciprocal-blastp-to-flybase)
-8. [TPM Normalization](#TPM-Normalization)
+8. [TPM Normalization](#tpm-normalization)
 9. [Heatmap Visualization of Differential Expression Analysis Results in R](#heatmap-visualization-of-differential-expression-analysis-results-in-r)
     
 ### Tools Used 
