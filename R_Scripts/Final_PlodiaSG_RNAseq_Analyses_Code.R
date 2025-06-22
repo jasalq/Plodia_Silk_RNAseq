@@ -8,7 +8,7 @@ setwd("/Users/jasminealqassar/Library/CloudStorage/GoogleDrive-j.alqassar@gwmail
 install.packages("tidyverse"); install.packages("stringr"); install.packages("dplyr"); install.packages("DESeq2")
 
 # Load necessary packages
-library(tidyverse); library(stringr); library(dplyr); library(DESeq2); library(ggplot2)
+library(tidyverse); library(stringr); library(dplyr); library(DESeq2); library(ggplot2); library(readxl)
 
 # Read the sample information into a data frame
 sampleinfo <- read_tsv("all_samples2.txt")
@@ -606,10 +606,7 @@ flybasenames_unique <- flybasenames %>%
   filter(n() == 1) %>%     # Keep only those with a single occurrence
   ungroup()
 
-
-
-
-
+# add your manyal annotations 
 
 manual_annotations <- read_excel("ilPloInte3.2_manually_curated_gene_table_final.xlsx")
 
@@ -700,4 +697,4 @@ plot_grid(final_plot, legend, rel_widths = c(1, 0.12))
   
 write.table(Z_df_matrix, file="heatmap_raw_table_229genes.tsv", quote=F, sep="\t",row.names=TRUE, na="")
 
- 
+
