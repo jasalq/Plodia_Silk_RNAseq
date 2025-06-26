@@ -23,14 +23,16 @@ seqdata = seqdata %>%
 
 # Add your curated gene symbols instead 
 #first add Geneid for each old symbol and then add the new symbol
-Symbol_to_Geneid <- read_excel("Plodia_gene_IDs.xlsx")
-
-Symbol_to_Geneid <- Symbol_to_Geneid %>%
-  select(Geneid,Symbol)%>%
+Symbol_to_Geneid <- read_excel("Plodia_gene_IDs.xlsx", col_types = "text") %>%
+  select(Geneid, Symbol) %>%
   distinct(Symbol, .keep_all = TRUE)
+
 
 seqdata <- seqdata %>%
   rename("Geneid" = "old_symbol") 
+
+seqdata <- seqdata %>%
+mutate(old_symbol = as.character(old_symbol))
 
 library(readxl)
   
@@ -606,7 +608,7 @@ flybasenames_unique <- flybasenames %>%
   filter(n() == 1) %>%     # Keep only those with a single occurrence
   ungroup()
 
-# add your manyal annotations 
+# add your manyal annotations
 
 manual_annotations <- read_excel("ilPloInte3.2_manually_curated_gene_table_final.xlsx")
 
