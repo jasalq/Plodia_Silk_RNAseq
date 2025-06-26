@@ -476,7 +476,10 @@ Symbol_to_Geneid <- Symbol_to_Geneid %>%
   distinct(Symbol, .keep_all = TRUE)
 
 seqdata <- seqdata %>%
-  rename("Geneid" = "old_symbol") 
+  rename("Geneid" = "old_symbol")
+
+seqdata <- seqdata %>%
+mutate(old_symbol = as.character(old_symbol))
 
 library(readxl)
   
