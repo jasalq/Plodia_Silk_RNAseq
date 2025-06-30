@@ -1056,8 +1056,6 @@ write.table(TPM_normalized_counts_filtered_byTPM, file="volplot_data.tsv", quote
 ## Heatmap Visualization of Differential Expression Analysis Results in R 
 (based on the tutorial here https://genviz.org/module-04-expression/0004/02/01/DifferentialExpression/) 	
 
-An R script with all of the code detailed below is [here](#R_Scripts/heatmap_code_cleaned.R)
-
 Load libraries
 ```
 library(readxl);library(DESeq2);library(reshape2);library(ggdendro);library(khroma);library(viridis);library(gridExtra);library(cowplot);library(pals)
