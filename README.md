@@ -1002,7 +1002,7 @@ manual_annotations <- read_excel("ilPloInte3.2_manually_curated_gene_table_final
 manual_annotations <- manual_annotations %>%
   select(`Geneid`, Symbol)
 
-annotation_list <- trimws(readLines("volplot_annotation_list.txt"))
+annotation_list <- trimws(readLines("volplot_annotation_list.txt")) # this is a file I generated that is one column with the symbol names I wanted annotated
 
 TPM_normalized_counts_filtered_byTPM <- TPM_normalized_counts_filtered_byTPM %>%
   filter(log2(`Max(MSG,PSG)`) > -2)
