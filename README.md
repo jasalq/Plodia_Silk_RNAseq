@@ -15,7 +15,7 @@ This repository contains all code associated with the manuscript Alqassar et al.
 6. [Differential Expression Analysis (DESeq2)](#differential-expression-analysis-with-deseq2-in-rstudio)
 7. [Gene Identification through FlyBase Homology Searches](#homology-searches-using-reciprocal-blastp-to-flybase)
 8. [TPM Normalization](#tpm-normalization)
-9. [Gene Ontology (GO) Enrichment Analysis with Drosophila GO subset](#analysis-of-degs-using-the-go-subset-slimgo_drosophila)
+9. [Gene Ontology (GO) Enrichment Analysis with Drosophila GO subset](#analysis-of-degs-using-the-go-subset-slimgo_drosophila)	
 10.[Heatmap Visualization of Differential Expression Analysis Results in R](#heatmap-visualization-of-differential-expression-analysis-results-in-r)
     
 ### Tools Used 
