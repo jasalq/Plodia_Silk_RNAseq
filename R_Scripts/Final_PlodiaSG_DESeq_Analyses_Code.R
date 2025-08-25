@@ -886,7 +886,6 @@ plot_grid(final_plot, legend, rel_widths = c(1, 0.12))
 #GO Enrichment Analysis 
 
 library(clusterProfiler)
-library(BaseSet)
 library(ontologyIndex)
 
 gaf_data <- getGAF("GCF_027563975.2-RS_2024_04_drosophila_slim_GO.mapped.gaf")
