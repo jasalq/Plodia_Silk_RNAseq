@@ -1459,7 +1459,6 @@ owltools go.obo --gaf GCF_027563975.2-RS_2024_04_gene_ontology.gaf --map2slim --
 **Now back in RStudio perform the GO enrichment analysis with <em>clusterProfiler</em>**
 ```
 library(clusterProfiler)
-library(BaseSet)
 library(ontologyIndex)
 
 gaf_data <- getGAF("GCF_027563975.2-RS_2024_04_drosophila_slim_GO.mapped.gaf")
