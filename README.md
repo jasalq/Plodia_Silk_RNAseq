@@ -15,7 +15,8 @@ This repository contains all code associated with the manuscript Alqassar et al.
 6. [Differential Expression Analysis (DESeq2)](#differential-expression-analysis-with-deseq2-in-rstudio)
 7. [Gene Identification through FlyBase Homology Searches](#homology-searches-using-reciprocal-blastp-to-flybase)
 8. [TPM Normalization](#tpm-normalization)
-9. [Heatmap Visualization of Differential Expression Analysis Results in R](#heatmap-visualization-of-differential-expression-analysis-results-in-r)
+9. [Gene Ontology (GO) Enrichment Analysis]()
+10.[Heatmap Visualization of Differential Expression Analysis Results in R](#heatmap-visualization-of-differential-expression-analysis-results-in-r)
     
 ### Tools Used 
 * Blast+ v.2.16.0+
@@ -23,7 +24,9 @@ This repository contains all code associated with the manuscript Alqassar et al.
 * FastQC v.0.11.8
 * JDK v.21.0.1
 * NCBI Datasets
+* OWLTools v.4.5.29	
 * RStudio v2024.04.2+764
+* R/ clusterProfiler	
 * R/ cowplot
 * R/ DESeq2
 * R/ dplyr
@@ -1266,4 +1269,329 @@ plot_grid(final_plot, legend, rel_widths = c(1, 0.12))
   
 write.table(Z_df_matrix, file="heatmap_raw_table_229genes.tsv", quote=F, sep="\t",row.names=TRUE, na="")
 ```
+Make a heatmap without collapsing by tissue (leaving per sample expression)
+```
+# Make the same heatmap for the supplement but leave samples
 
+# Perform variance stabilizing transformation
+vsd <- vst(ddsObj)
+vst_mat <- assay(vsd)
+
+vst_df <- as.data.frame(vst_mat) %>%
+  rownames_to_column("Geneid")
+
+#Set rownames and remove Geneid column before scaling
+
+mat <- vst_df
+rownames(mat) <- mat$Geneid
+mat$Geneid <- NULL
+
+# Z-score across compartments (i.e., scale by row)
+Z <- t(scale(t(as.matrix(mat))))
+
+# Convert to dataframe and keep gene IDs
+Z <- as.data.frame(Z) %>%
+  rownames_to_column("Geneid")
+
+#before reading in add Max(MSG, PSG) column
+normcounts <- read_excel("All_Plodia_SG_DESeq2_normalized_counts.xls") 
+
+normcounts <- normcounts %>%
+  select(Geneid, `Max(MSG,PSG)`) 
+
+topGenesMSG_PSG <- read_tsv("DESeq2_Results_MSG_vs_PSG.tsv")
+
+
+topGenesMSG_PSG <- topGenesMSG_PSG %>%
+  left_join(normcounts, by = c("Geneid" = "Geneid"))
+
+
+# Filter significant genes (adjust as needed)
+sigGenes <- data.frame(Geneid = topGenesMSG_PSG$Geneid[
+  topGenesMSG_PSG$padj <= 0.01 & abs(topGenesMSG_PSG$log2FoldChange) > 3 & (topGenesMSG_PSG$`Max(MSG,PSG)`) > 300
+])
+
+
+
+Z <- Z[Z$Geneid %in% sigGenes$Geneid, ]
+
+flybasenames <- topGenesMSG_PSG %>%
+  select(Geneid, FB_gene_symbol) %>%
+  drop_na() %>%
+  add_count(Geneid) %>%
+  filter(n == 1) %>%
+  select(-n)
+
+flybasenames_unique <- flybasenames %>%
+  group_by(FB_gene_symbol) %>%
+  filter(n() == 1) %>%     # Keep only those with a single occurrence
+  ungroup()
+
+# add your manyal annotations
+
+manual_annotations <- read_excel("ilPloInte3.2_manually_curated_gene_table_final.xlsx")
+
+manual_annotations <- manual_annotations %>%
+  select(`Geneid`, Symbol)
+
+Z <- Z %>%
+  left_join(manual_annotations, by = c("Geneid" = "Geneid")) %>%
+  left_join(flybasenames_unique, by = c("Geneid" = "Geneid")) %>%
+  mutate(
+    Symbol = ifelse(str_detect(Symbol, "LOC") & !is.na(FB_gene_symbol), FB_gene_symbol, Symbol)
+  ) %>%
+  select(-FB_gene_symbol, -Geneid) 
+
+library(reshape2); library(ggdendro)
+
+Z_df <- melt(Z)
+Z_df <- na.omit(Z_df)
+colnames(Z_df) <- c("Gene", "Sample", "Expression")
+
+Z_df <- Z_df %>%
+  group_by(Gene, Sample) %>%
+  summarise(Expression = mean(Expression, na.rm = TRUE), .groups = "drop")
+
+#convert to wide matrix format for clustering
+Z_df_matrix <- dcast(Z_df, Gene ~ Sample, value.var = "Expression")
+rownames(Z_df_matrix) <- Z_df_matrix$Gene
+Z_df_matrix$Gene <- NULL
+
+
+# Compute distances and clusters
+distanceGene <- dist(Z_df_matrix)
+distanceSample <- dist(t(Z_df_matrix))
+clusterSample <- hclust(distanceSample, method = "average")
+clusterGene <- hclust(distanceGene, method = "average")
+
+
+#make dendogram for genes 
+geneModel <- as.dendrogram(clusterGene)
+geneDendrogramData <- segment(dendro_data(geneModel, type = "rectangle"))
+geneDendrogram <- ggplot(geneDendrogramData) +
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+  coord_flip() +
+  scale_y_reverse(expand = c(0, 0)) +
+  scale_x_continuous(expand = c(0, 0)) +
+  theme_dendro()
+
+Z_df$Gene <- factor(Z_df$Gene, levels=clusterGene$labels[clusterGene$order])
+# make a dendogram for samples 
+sampleModel <- as.dendrogram(clusterSample)
+sampleDendrogramData <- segment(dendro_data(sampleModel, type = "rectangle"))
+sample_order <- clusterSample$labels[clusterSample$order]
+Z_df$Sample <- factor(Z_df$Sample, levels=clusterSample$labels[clusterSample$order])
+sampleDendrogram <- ggplot(sampleDendrogramData) +
+  geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+  scale_x_continuous(
+    breaks = seq_along(sample_order), 
+    labels = sample_order,
+    expand = c(0, 0)
+  ) +
+  scale_y_continuous(expand = c(0, 0)) +
+  theme_dendro()
+#define your color palette 
+library(pals)
+ocean.balance <- ocean.balance
+coolwarm <- coolwarm
+library(gridExtra); library(patchwork); library(cowplot)
+
+# Construct the heatmap
+heatmap <- ggplot(Z_df, aes(x=Sample, y=Gene, fill=Expression)) + geom_raster() + scale_fill_gradientn(colours =coolwarm(256)) + theme(axis.text.x=element_text(angle=65, hjust=1), axis.text.y = element_blank(), axis.ticks.y=element_blank())
+heatmap
+grid.arrange(geneDendrogram, heatmap, ncol=1, heights=c(1,5))
+
+# Clean up the plot layout with cowplot 
+# Create heatmap
+heatmap <- ggplot(Z_df, aes(x = Sample, y = Gene, fill = Expression)) +
+  geom_raster() +
+  scale_fill_gradientn(colours = coolwarm(256)) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(angle = 65, hjust = 1),
+    axis.text.y = element_text(size = 6),
+    axis.ticks.y = element_blank(),
+    strip.text = element_text(size = 10, face = "bold"
+    ))
+
+heatmap
+# Remove duplicated legend
+heatmap_clean <- heatmap + theme(legend.position = "none")
+
+# Arrange plots
+top_row <- plot_grid(sampleDendrogram, ncol = 1)
+mid_row <- plot_grid(geneDendrogram, heatmap_clean, ncol = 2, rel_widths = c(0.2, 1))
+legend <- get_legend(heatmap)
+
+# Final layout
+final_plot <- plot_grid(top_row, mid_row, ncol = 1, rel_heights = c(0.2, 1))
+plot_grid(final_plot, legend, rel_widths = c(1, 0.12))
+```
+### Analysis of DEGs using the GO subset <em>slimGO_Drosophila</em>
+Download the slimGO_drosophila dataset [here](https://geneontology.org/docs/go-subset-guide/)	
+
+**First with Owltools map the slim terms to the existing NCBI GO annotation for the <em>Plodia</em> genome (located On the NCBI FTP Server)**
+```
+#!/bin/sh
+#SBATCH -J plodia_GO_fly_slim_mapping
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=j.alqassar@gwu.edu
+#SBATCH -o plodia_GO_fly_slim_mapping.out #redirecting stdout
+#SBATCH -p nano #queue 
+#SBATCH -N 1 #amount of nodes 
+#SBATCH -n 40 #amount of cores 
+#SBATCH -t 00:30:00
+
+
+echo "=========================================================="
+echo "Running on node : $HOSTNAME"
+echo "Current directory : $PWD"
+echo "Current job ID : $SLURM_JOB_ID"
+echo "=========================================================="
+
+module load jdk
+PATH=$PATH:/CCAS/groups/martinlab/jasmine/software/
+
+cd /scratch/martinlab/jasmine/plodia_silk_gland_diff_exp/GO_term_mapping
+
+owltools go.obo --gaf GCF_027563975.2-RS_2024_04_gene_ontology.gaf --map2slim --subset goslim_drosophila --write-gaf GCF_027563975.2-RS_2024_04_drosophila_slim_GO.mapped.gaf
+```
+**Now back in RStudio perform the GO enrichment analysis with <em>clusterProfiler</em>**
+```
+library(clusterProfiler)
+library(BaseSet)
+library(ontologyIndex)
+
+gaf_data <- getGAF("GCF_027563975.2-RS_2024_04_drosophila_slim_GO.mapped.gaf")
+gaf_df <- as.data.frame(gaf_data)
+
+
+gaf_df <- gaf_df %>%
+  relocate("DB_Object_ID", .after = "elements") %>%
+  relocate("elements", .after = "sets") %>%
+  relocate("sets", .after = "DB_Object_ID")
+
+sigGenes <- data.frame(Geneid = topGenesMSG_PSG$Geneid[
+  topGenesMSG_PSG$padj <= 0.01 & abs(topGenesMSG_PSG$log2FoldChange) > 3 & (topGenesMSG_PSG$`Max(MSG,PSG)`) > 300
+])
+
+
+MSG_DE_genes <- topGenesMSG_PSG %>%
+  filter(, log2FoldChange > 0) %>%
+  select(Geneid) 
+
+PSG_DE_genes <- topGenesMSG_PSG %>%
+  filter(, log2FoldChange < 0) %>%
+  select(Geneid) 
+
+MSG_DE_genes <- MSG_DE_genes %>%
+  mutate(Geneid= str_remove(Geneid, "LOC"))
+
+enrich_result <- compareCluster(
+  MSG_DE_genes,
+  fun = "enricher",
+  TERM2GENE = gaf_df[, c(2, 1)]
+  )
+
+
+download.file("http://purl.obolibrary.org/obo/go.obo", destfile = "go.obo", mode = "wb")
+go <- get_ontology("go.obo", extract_tags = "everything")
+
+go$id[1:5]         # GO IDs
+go$name[1:5]       # GO descriptions
+
+go_df <- data.frame(
+  ID   = go$id,
+  Term = unname(go$name[go$id]),   # use go$id to order the terms to match IDs
+  stringsAsFactors = FALSE
+)
+
+
+# add term 
+go_map <- setNames(go_df$Term, go_df$ID)
+
+df <- as.data.frame(enrich_result)
+custom_order <- c("GO:0008092", "GO:0005856", "GO:0006811", "GO:0007010","GO:0048878", "GO:0051301")
+
+
+
+
+df <- df %>%
+  # Make Description a factor with levels ordered by custom_order of IDs
+ mutate(Description = factor(Description, levels = Description[match(custom_order, ID)])) %>%
+ arrange(factor(ID, levels = custom_order))
+# Now plot
+
+ggplot(df[1:6, ], aes(x = FoldEnrichment, y = Description)) +
+  geom_point(aes(size = Count, color = p.adjust)) +
+  scale_color_continuous(low = "red", high = "blue") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
+    plot.margin = margin(10, 40, 10, 10)  # top, right, bottom, left
+  ) +
+  xlab("Fold Enrichment") +
+  scale_y_discrete(labels = function(ids) {
+    labs <- go_map[ids]
+    labs[is.na(labs)] <- ids[is.na(labs)] 
+    labs
+  }) +
+  ylab(NULL)
+
+
+
+
+PSG_DE_genes <- PSG_DE_genes %>%
+  mutate(Geneid= str_remove(Geneid, "LOC"))
+
+enrich_result <- compareCluster(
+  PSG_DE_genes,
+  fun = "enricher",
+  TERM2GENE = gaf_df[, c(2, 1)]
+)
+
+
+download.file("http://purl.obolibrary.org/obo/go.obo", destfile = "go.obo", mode = "wb")
+go <- get_ontology("go.obo", extract_tags = "everything")
+
+go$id[1:5]         # GO IDs
+go$name[1:5]       # GO descriptions
+
+go_df <- data.frame(
+  ID   = go$id,
+  Term = unname(go$name[go$id]),   # use go$id to order the terms to match IDs
+  stringsAsFactors = FALSE
+)
+
+
+# add term 
+go_map <- setNames(go_df$Term, go_df$ID)
+
+
+df <- as.data.frame(enrich_result)
+
+custom_order <- c("GO:0003735", "GO:0005730", "GO:0006399", "GO:0016072", "GO:0006396", "GO:0042254", "GO:0051301")
+
+
+#df <- df %>%
+  # Make Description a factor with levels ordered by custom_order of IDs
+  mutate(Description = factor(Description, levels = Description[match(custom_order, ID)])) %>%
+  arrange(factor(ID, levels = custom_order))
+# Now plot
+
+ggplot(df[1:12, ], aes(x = FoldEnrichment, y = Description)) +
+  geom_point(aes(size = Count, color = p.adjust)) +
+  scale_color_continuous(low = "red", high = "blue") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 30, hjust = 1, vjust = 1),
+    plot.margin = margin(10, 40, 10, 10)  # top, right, bottom, left
+  ) +
+  xlab("Fold Enrichment") +
+  scale_y_discrete(labels = function(ids) {
+    labs <- go_map[ids]
+    labs[is.na(labs)] <- ids[is.na(labs)] 
+    labs
+  }) +
+  ylab(NULL)
+```
