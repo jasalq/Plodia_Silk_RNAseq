@@ -581,6 +581,32 @@ Get right contrasts, in this case MSG vs PSG
 ```
 Tissue_MSG_vs_PSG <- results(ddsObj, alpha = 0.05, contrast=c("Tissue","MSG","PSG"))
 ```
+Make a PCA plot to show sample variation
+```
+vsd <- vst(ddsObj, blind=FALSE)
+pcaData<- plotPCA(vsd, intgroup=c("Sample", "Tissue"), returnData=TRUE)
+
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+ggplot(pcaData, aes(PC1, PC2, color=Sample, shape=Tissue)) +
+  geom_point(size=3) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+  coord_fixed() 
+
+
+pcaData<- plotPCA(vsd, intgroup=c("Tissue"), returnData=TRUE)
+
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+
+ggplot(pcaData, aes(PC1, PC2, shape=Tissue)) +
+  scale_color_brewer(palette = "Paired") +
+  geom_point(size=3) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+  coord_fixed()
+  ```
 Display most diff expressed genes for this contrast with a padj < 0.05 and generate a tsv table
 ```
 sum(Tissue_MSG_vs_PSG$padj < 0.05, na.rm = TRUE)
