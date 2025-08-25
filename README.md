@@ -34,6 +34,7 @@ This repository contains all code associated with the manuscript Alqassar et al.
 * R/ ggplot2
 * R/ ggrepel
 * R/ gridExtra
+* R/ ontologyIndex
 * R/ pals
 * R/ patchwork
 * R/ readxl
