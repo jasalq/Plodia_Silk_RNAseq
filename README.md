@@ -1,6 +1,6 @@
 # Plodia_Silk_RNAseq
 <body>  
-This repository contains all code associated with the manuscript Alqassar et al. 2025 <a href="https://doi.org/10.1101/2025.07.11.664249"> Regionalization of gene expression and cell types in the silk gland of the pantry moth <em>Plodia interpunctella </em> </a>. The code found in this repository processes, maps, and performs differential expression analyses on RNA sequencing data generated during the study where we aimed to understand differences in gene expression between different sections of silk gland tissue.		
+This repository contains all code associated with the manuscript Alqassar et al. 2025 <a href="https://doi.org/10.1016/j.isci.2025.113865"> Regionalization of gene expression and cell types in the silk glands of <em>Plodia</em> pantry moths</a>. The code found in this repository processes, maps, and performs differential expression analyses on RNA sequencing data generated during the study where we aimed to understand differences in gene expression between different sections of silk gland tissue.		
 <body/>	
 <br><br>	
 <strong>Contact info</strong>: Jasmine Alqassar (j.alqassar@gwu.edu) and Arnaud Martin (arnaud@gwu.edu)
